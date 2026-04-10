@@ -7,14 +7,14 @@ from ckan.plugins import toolkit
 from ckanext.datastore.backend.postgres import identifier
 from geomet import wkt, wkb
 
-from ckanext.dataspatial.lib.db import get_connection
+from ckanext.spatialdata.lib.db import get_connection
 
 DEFAULT_CONTEXT = {"user": "default"}
 
 from ckan.model import parse_db_config
 
 
-import ckanext.dataspatial as dataspatial_module
+import ckanext.spatialdata as spatialdata_module
 
 
 logger = logging.getLogger(__name__)
@@ -96,18 +96,18 @@ def can_be_spatial(resource: dict):
 
 def out_of_sync(resource: dict):
     return (
-        not resource.get("dataspatial_last_geom_updated")
-        or resource.get("dataspatial_last_geom_updated") < resource.get("last_modified")
-        or resource.get("dataspatial_last_geom_updated")
+        not resource.get("spatialdata_last_geom_updated")
+        or resource.get("spatialdata_last_geom_updated") < resource.get("last_modified")
+        or resource.get("spatialdata_last_geom_updated")
         < resource.get("metadata_modified")
     )
 
 
 def _has_necessary_metadata(resource: dict):
     return (
-        resource.get("dataspatial_latitude_field")
-        and resource.get("dataspatial_longitude_field")
-    ) or resource.get("dataspatial_wkt_field")
+        resource.get("spatialdata_latitude_field")
+        and resource.get("spatialdata_longitude_field")
+    ) or resource.get("spatialdata_wkt_field")
 
 
 def update_fulltext_trigger():
@@ -117,7 +117,7 @@ def update_fulltext_trigger():
     write_user = parsed_db["db_user"]
 
     template_filename = os.path.join(
-        os.path.dirname(dataspatial_module.__file__), "update_triggers.sql"
+        os.path.dirname(spatialdata_module.__file__), "update_triggers.sql"
     )
     with open(template_filename) as fp:
         template = fp.read()

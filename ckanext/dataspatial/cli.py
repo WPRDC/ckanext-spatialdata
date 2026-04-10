@@ -3,14 +3,14 @@ import logging
 
 import click
 
-from ckanext.dataspatial.lib.geofiles import load_geojson_to_datastore
-from ckanext.dataspatial.lib.postgis import (
+from ckanext.spatialdata.lib.geofiles import load_geojson_to_datastore
+from ckanext.spatialdata.lib.postgis import (
     create_postgis_columns,
     create_postgis_index,
     populate_postgis_columns,
 )
-from ckanext.dataspatial.lib.util import update_fulltext_trigger
-from ckanext.dataspatial.lib.types import GEOMETRY_TYPES
+from ckanext.spatialdata.lib.util import update_fulltext_trigger
+from ckanext.spatialdata.lib.types import GEOMETRY_TYPES
 
 log = logging.getLogger("ckan")
 
@@ -22,7 +22,7 @@ log = logging.getLogger("ckan")
 @click.option("--longitude-field")
 @click.option("--wkt-field")
 @click.option("--geom-type")
-def dataspatial(
+def spatialdata(
     action: str,
     resource_id: str,
     latitude_field: str,
@@ -30,7 +30,7 @@ def dataspatial(
     wkt_field: str,
     geom_type: str,
 ):
-    """Run dataspatial COMMAND to create or populate postgis spatial columns on datasets.
+    """Run spatialdata COMMAND to create or populate postgis spatial columns on datasets.
 
     ACTION: one of (create-columns | create-index | populate-columns)
     RESOURCE_ID: ID of resource to modify/update
@@ -82,7 +82,7 @@ def dataspatial(
 
 
 @click.command()
-def dataspatial_init():
+def spatialdata_init():
     click.echo("Updating _full_text update trigger.")
     update_fulltext_trigger()
     click.echo("Done!")

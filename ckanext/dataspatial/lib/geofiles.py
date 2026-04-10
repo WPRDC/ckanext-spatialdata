@@ -8,10 +8,10 @@ from ckan.logic import NotFound
 from ckan.plugins import toolkit
 from geomet import wkb
 
-from ckanext.dataspatial.lib.constants import WKB_FIELD_NAME
-from ckanext.dataspatial.lib.postgis import prepare_and_populate_geoms
-from ckanext.dataspatial.lib.types import StatusCallback, GeoreferenceStatus
-from ckanext.dataspatial.lib.util import get_resource_file_path, DEFAULT_CONTEXT
+from ckanext.spatialdata.lib.constants import WKB_FIELD_NAME
+from ckanext.spatialdata.lib.postgis import prepare_and_populate_geoms
+from ckanext.spatialdata.lib.types import StatusCallback, GeoreferenceStatus
+from ckanext.spatialdata.lib.util import get_resource_file_path, DEFAULT_CONTEXT
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def load_geojson_to_datastore(
         if feature["geometry"]
     ]
 
-    fields = resource.get("dataspatial_fields_definition")
+    fields = resource.get("spatialdata_fields_definition")
     if not fields:
         fields = [
             {"id": k, "type": "bytea" if k == WKB_FIELD_NAME else "text"}

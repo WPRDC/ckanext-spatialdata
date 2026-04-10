@@ -1,8 +1,8 @@
 from ckan.plugins import toolkit
-from ckanext.dataspatial.lib.types import GeoreferenceStatus
+from ckanext.spatialdata.lib.types import GeoreferenceStatus
 
 
-def dataspatial_status_description(status: dict) -> str:
+def spatialdata_status_description(status: dict) -> str:
     _ = toolkit._
 
     if status["status"]:

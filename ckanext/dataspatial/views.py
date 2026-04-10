@@ -7,13 +7,13 @@ from ckan.common import _
 from flask import Blueprint
 from flask.views import MethodView
 
-from ckanext.dataspatial.lib.types import StatusResult
+from ckanext.spatialdata.lib.types import StatusResult
 
-dataspatial = Blueprint("dataspatial", __name__)
+spatialdata = Blueprint("spatialdata", __name__)
 
 
 def get_blueprints():
-    return [dataspatial]
+    return [spatialdata]
 
 
 def render_resource_data_view(package_id: str, resource_id: str):
@@ -29,13 +29,13 @@ def render_resource_data_view(package_id: str, resource_id: str):
         base.abort(404, _("Resource not found"))
 
     # get job status
-    status: StatusResult = toolkit.get_action("dataspatial_status")(
+    status: StatusResult = toolkit.get_action("spatialdata_status")(
         {"user": "default"},
         {"resource_id": resource_id},
     )
 
     return base.render(
-        "dataspatial/resource_dataspatial.html",
+        "spatialdata/resource_spatialdata.html",
         extra_vars={
             "pkg_dict": pkg_dict,
             "resource": resource,
@@ -47,12 +47,12 @@ def render_resource_data_view(package_id: str, resource_id: str):
 class ResourceDataView(MethodView):
     def post(self, id: str, resource_id: str):
         """Submit job and return its status"""
-        toolkit.get_action("dataspatial_submit")(
+        toolkit.get_action("spatialdata_submit")(
             {"user": "default"}, {"resource_id": resource_id}
         )
 
         return toolkit.redirect_to(
-            "dataspatial.resource_dataspatial", id=id, resource_id=resource_id
+            "spatialdata.resource_spatialdata", id=id, resource_id=resource_id
         )
 
     def get(self, id: str, resource_id: str):
@@ -60,7 +60,7 @@ class ResourceDataView(MethodView):
         return render_resource_data_view(id, resource_id)
 
 
-dataspatial.add_url_rule(
-    "/dataset/<id>/resource_dataspatial/<resource_id>",
-    view_func=ResourceDataView.as_view(str("resource_dataspatial")),
+spatialdata.add_url_rule(
+    "/dataset/<id>/resource_spatialdata/<resource_id>",
+    view_func=ResourceDataView.as_view(str("resource_spatialdata")),
 )

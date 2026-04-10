@@ -5,24 +5,24 @@ from ckan.common import CKANConfig
 from ckan.plugins import SingletonPlugin, implements, interfaces, toolkit
 from ckan.types import Schema
 
-from ckanext.dataspatial import cli, views
-from ckanext.dataspatial.actions import (
-    dataspatial_submit,
-    dataspatial_hook,
-    dataspatial_status,
-    dataspatial_resource_list,
+from ckanext.spatialdata import cli, views
+from ckanext.spatialdata.actions import (
+    spatialdata_submit,
+    spatialdata_hook,
+    spatialdata_status,
+    spatialdata_resource_list,
 )
-from ckanext.dataspatial.config import config
-from ckanext.dataspatial.helpers import dataspatial_status_description
-from ckanext.dataspatial.schema import (
-    dataspatial_modify_resource_schema,
-    dataspatial_show_resource_schema,
+from ckanext.spatialdata.config import config
+from ckanext.spatialdata.helpers import spatialdata_status_description
+from ckanext.spatialdata.schema import (
+    spatialdata_modify_resource_schema,
+    spatialdata_show_resource_schema,
 )
-from ckanext.dataspatial.search import datastore_query_extent
-from ckanext.dataspatial.validators import json_object_list
+from ckanext.spatialdata.search import datastore_query_extent
+from ckanext.spatialdata.validators import json_object_list
 
 
-class DataSpatialPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
+class spatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     """ """
 
     implements(interfaces.IValidators)
@@ -44,22 +44,22 @@ class DataSpatialPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
     # IDatasetForm
     def _modify_package_schema(self, schema) -> Schema:
-        cast(Schema, schema["resources"]).update(dataspatial_modify_resource_schema())
+        cast(Schema, schema["resources"]).update(spatialdata_modify_resource_schema())
         return schema
 
     def show_package_schema(self) -> Schema:
-        schema = super(DataSpatialPlugin, self).show_package_schema()
+        schema = super(spatialdataPlugin, self).show_package_schema()
         # Add our custom_text field to the dataset schema.
-        cast(Schema, schema["resources"]).update(dataspatial_show_resource_schema())
+        cast(Schema, schema["resources"]).update(spatialdata_show_resource_schema())
         return schema
 
     def create_package_schema(self) -> Schema:
-        schema = super(DataSpatialPlugin, self).create_package_schema()
+        schema = super(spatialdataPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
         return schema
 
     def update_package_schema(self) -> Schema:
-        schema = super(DataSpatialPlugin, self).update_package_schema()
+        schema = super(spatialdataPlugin, self).update_package_schema()
         schema = self._modify_package_schema(schema)
         return schema
 
@@ -80,7 +80,7 @@ class DataSpatialPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
         :param ckan_config:
 
         """
-        prefix = "dataspatial."
+        prefix = "spatialdata."
         config_items = config.keys()
         for long_name in ckan_config:
             if not long_name.startswith(prefix):
@@ -96,22 +96,22 @@ class DataSpatialPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
         if config["query_extent"] not in ["postgis", "solr"]:
             raise toolkit.ValidationError(
-                {"dataspatial.query_extent": "Should be either of postgis or solr"}
+                {"spatialdata.query_extent": "Should be either of postgis or solr"}
             )
 
     # IActions
     def get_actions(self):
         """ """
         return {
-            "dataspatial_submit": dataspatial_submit,
-            "dataspatial_hook": dataspatial_hook,
-            "dataspatial_status": dataspatial_status,
-            "dataspatial_resource_list": dataspatial_resource_list,
+            "spatialdata_submit": spatialdata_submit,
+            "spatialdata_hook": spatialdata_hook,
+            "spatialdata_status": spatialdata_status,
+            "spatialdata_resource_list": spatialdata_resource_list,
         }
 
     # IClick
     def get_commands(self):
-        return [cli.dataspatial, cli.dataspatial_init]
+        return [cli.spatialdata, cli.spatialdata_init]
 
     # IBlueprint
 
@@ -120,4 +120,4 @@ class DataSpatialPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
     # ITemplateHelpers
     def get_helpers(self):
-        return {"dataspatial_status_description": dataspatial_status_description}
+        return {"spatialdata_status_description": spatialdata_status_description}

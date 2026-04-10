@@ -4,7 +4,7 @@
 
 {% block primary_content_inner %}
 
-    {% set action = h.url_for('dataspatial.resource_dataspatial', id=pkg.name, resource_id=res.id) %}
+    {% set action = h.url_for('spatialdata.resource_spatialdata', id=pkg.name, resource_id=res.id) %}
 
     <form method="post" action="{{ action }}" class="datapusher-form">
         {{ h.csrf_input() }}
@@ -20,7 +20,7 @@
         </colgroup>
         <tr>
             <th>{{ _('Status') }}</th>
-            <td>{{ h.dataspatial_status_description(status) }}</td>
+            <td>{{ h.spatialdata_status_description(status) }}</td>
         </tr>
         <tr>
             <th>{{ _('Last updated') }}</th>

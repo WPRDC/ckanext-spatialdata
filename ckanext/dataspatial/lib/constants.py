@@ -19,7 +19,7 @@ AVAILABLE_TYPES = {
 }
 
 
-WKB_FIELD_NAME = "dataspatial_wkb"
+WKB_FIELD_NAME = "spatialdata_wkb"
 
 
 BATCH_SIZE = 5000

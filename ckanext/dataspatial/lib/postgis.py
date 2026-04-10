@@ -8,9 +8,9 @@ from ckan.types import DataDict
 from ckanext.datastore import backend as datastore_db
 from ckanext.datastore.helpers import is_single_statement
 
-from ckanext.dataspatial.config import config
-from ckanext.dataspatial.lib.constants import WKB_FIELD_NAME
-from ckanext.dataspatial.lib.db import (
+from ckanext.spatialdata.config import config
+from ckanext.spatialdata.lib.constants import WKB_FIELD_NAME
+from ckanext.spatialdata.lib.db import (
     create_geom_column,
     create_index,
     fields_exist,
@@ -20,12 +20,12 @@ from ckanext.dataspatial.lib.db import (
     invoke_search_plugins,
     get_field_values,
 )
-from ckanext.dataspatial.lib.types import (
+from ckanext.spatialdata.lib.types import (
     StatusCallback,
     SpecificStatusCallback,
     GeoreferenceStatus,
 )
-from ckanext.dataspatial.lib.util import DEFAULT_CONTEXT, get_common_geom_type
+from ckanext.spatialdata.lib.util import DEFAULT_CONTEXT, get_common_geom_type
 
 logger = logging.getLogger(__name__)
 
@@ -310,14 +310,14 @@ def prepare_and_populate_geoms(
     status_callback: StatusCallback = lambda status, value, error: None,
 ) -> None:
     """Adds geometric data fields, geometric indexes and then populates the geometric fields based
-    on extant data and dataspatial metadata.
+    on extant data and spatialdata metadata.
 
     :param resource: CKAN Resource dict
     :param from_geojson_add: True if going from creation of new geojson file.
     """
-    lat_field = resource.get("dataspatial_latitude_field")
-    lng_field = resource.get("dataspatial_longitude_field")
-    wkt_field = resource.get("dataspatial_wkt_field")
+    lat_field = resource.get("spatialdata_latitude_field")
+    lng_field = resource.get("spatialdata_longitude_field")
+    wkt_field = resource.get("spatialdata_wkt_field")
 
     # common args
     populate_args = {"resource_id": resource['id'], "status_callback": status_callback}
@@ -357,9 +357,9 @@ def prepare_and_populate_geoms(
         DEFAULT_CONTEXT,
         {
             "id": resource["id"],
-            "dataspatial_last_geom_updated": datetime.datetime.now().isoformat(),
-            "dataspatial_active": True,
-            "dataspatial_status": "active",
+            "spatialdata_last_geom_updated": datetime.datetime.now().isoformat(),
+            "spatialdata_active": True,
+            "spatialdata_status": "active",
         },
     )
     logger.info(f"Geometry columns for {resource['id']} populated.")

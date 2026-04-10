@@ -5,34 +5,34 @@
     {% if current_user.sysadmin %}
         <hr/>
         <p>testing!</p>
-        <h2>(Optional) Dataspatial metadata</h2>
+        <h2>(Optional) spatialdata metadata</h2>
         {{ form.info(_('These fields are only for sysadmins and are optional.')) }}
         {{ form.info(_('If Latitude & Longitude fields are OR WKT field is provided, the resource will be geocoded.')) }}
         <br/>
 
         <div class="row row-cols-2">
-            {% call form.input('dataspatial_longitude_field', label=_('Longitude (x) field name'), id='field-dataspatial_longitude_field', placeholder='longitude', value=data.dataspatial_longitude_field, error=errors.dataspatial_longitude_field) %}
+            {% call form.input('spatialdata_longitude_field', label=_('Longitude (x) field name'), id='field-spatialdata_longitude_field', placeholder='longitude', value=data.spatialdata_longitude_field, error=errors.spatialdata_longitude_field) %}
                 {{ form.info(_('Required with "Latitude Field" to make datastore resource spatially aware, unless "WKT Field" is provided.') ) }}
             {% endcall %}
         
-            {% call form.input('dataspatial_latitude_field', label=_('Latitude (y) field name'), id='field-dataspatial_latitude_field', placeholder='latitude', value=data.dataspatial_latitude_field, error=errors.dataspatial_latitude_field) %}
+            {% call form.input('spatialdata_latitude_field', label=_('Latitude (y) field name'), id='field-spatialdata_latitude_field', placeholder='latitude', value=data.spatialdata_latitude_field, error=errors.spatialdata_latitude_field) %}
                 {{ form.info(_('Required with "Longitude Field" to make datastore resource spatially aware, unless "WKT Field" is provided.') ) }}
             {% endcall %}
         </div>
 
-        {% call form.input('dataspatial_wkt_field', label=_('WKT field name'), id='field-dataspatial_wkt_field', placeholder='wkt', value=data.dataspatial_wkt_field, error=errors.dataspatial_wkt_field) %}
+        {% call form.input('spatialdata_wkt_field', label=_('WKT field name'), id='field-spatialdata_wkt_field', placeholder='wkt', value=data.spatialdata_wkt_field, error=errors.spatialdata_wkt_field) %}
             {{ form.info(_('Required to make datastore resource spatially aware, unless "Longitude Field" and "Latitude Field" are provided.') ) }}
         {% endcall %}
 
-        {% call form.input('dataspatial_geom_resource', label=_('Dataspatial Geometry Resource'), id='field-dataspatial_geom_resource', placeholder='', value=data.dataspatial_geom_resource, error=errors.dataspatial_geom_resource) %}
+        {% call form.input('spatialdata_geom_resource', label=_('spatialdata Geometry Resource'), id='field-spatialdata_geom_resource', placeholder='', value=data.spatialdata_geom_resource, error=errors.spatialdata_geom_resource) %}
             {{ form.info(_('Must be a valid resource ID. ID of the resource that provides geometries for this resource.') ) }}
         {% endcall %}
 
-        {% call form.input('dataspatial_geom_link', label=_('Foreign Key Link to Dataspatial Resource'), id='field-dataspatial_link', placeholder='', value=data.dataspatial_link, error=errors.dataspatial_link) %}
+        {% call form.input('spatialdata_geom_link', label=_('Foreign Key Link to spatialdata Resource'), id='field-spatialdata_link', placeholder='', value=data.spatialdata_link, error=errors.spatialdata_link) %}
             {{ form.info(_('Used to join this table with it&apos;s geometry resource. Must be of form [field_in_this_resource]->[field_in_geom_resource] (e.g. id->gid)') ) }}
         {% endcall %}
 
-        {% call form.textarea('dataspatial_fields_definition', label=_('Dataspatial Fields Definitions'), id='field-dataspatial_fields_definition', placeholder='[{"id": "columnA", "type": "text"}]', value=data.dataspatial_fields_definition, error=errors.dataspatial_fields_definition) %}
+        {% call form.textarea('spatialdata_fields_definition', label=_('spatialdata Fields Definitions'), id='field-spatialdata_fields_definition', placeholder='[{"id": "columnA", "type": "text"}]', value=data.spatialdata_fields_definition, error=errors.spatialdata_fields_definition) %}
             {{ form.info(_('Only used with GeoJSON resources. Must be a valid Fields json object. Used to provide field types when loading a GeoJSON into the datastore.') ) }}
             <a class="info-inline" href="https://docs.ckan.org/en/2.10/maintaining/datastore.html#fields"
                target="_blank"><i class="fa fa-book"></i> Fields Documentation</a>

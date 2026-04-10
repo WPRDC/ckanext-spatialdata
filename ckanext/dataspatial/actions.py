@@ -10,10 +10,10 @@ from ckan.types import Context, DataDict
 from dateutil.parser import isoparse as parse_iso_date
 from dateutil.parser import parse as parse_date
 
-from ckanext.dataspatial import jobs
-from ckanext.dataspatial.jobs import JOB_TYPE
-from ckanext.dataspatial.lib.postgis import prepare_and_populate_geoms
-from ckanext.dataspatial.lib.types import GeoreferenceStatus, StatusResult
+from ckanext.spatialdata import jobs
+from ckanext.spatialdata.jobs import JOB_TYPE
+from ckanext.spatialdata.lib.postgis import prepare_and_populate_geoms
+from ckanext.spatialdata.lib.types import GeoreferenceStatus, StatusResult
 
 enqueue_job = toolkit.enqueue_job
 get_queue = rq_jobs.get_queue
@@ -23,11 +23,11 @@ config = toolkit.config
 logger = logging.getLogger(__name__)
 
 
-TASK_TYPE = "dataspatial"
-TASK_KEY = "dataspatial"
+TASK_TYPE = "spatialdata"
+TASK_KEY = "spatialdata"
 
 
-def dataspatial_submit(context: Context, data_dict: DataDict) -> bool:
+def spatialdata_submit(context: Context, data_dict: DataDict) -> bool:
     """Submit a job to be georeferenced.
 
     Returns `True` if the job has been submitted and `False` if the job
@@ -123,7 +123,7 @@ def dataspatial_submit(context: Context, data_dict: DataDict) -> bool:
     )
 
     # todo add to config
-    timeout = config.get("ckanext.dataspatial.job_timeout", "3600")
+    timeout = config.get("ckanext.spatialdata.job_timeout", "3600")
     try:
         job = enqueue_job(
             jobs.georeference_datastore_table,
@@ -134,7 +134,7 @@ def dataspatial_submit(context: Context, data_dict: DataDict) -> bool:
         logger.exception(e)
         return False
 
-    logger.debug(f"Enqueued dataspatial job {job.id} for resource {resource_id}")
+    logger.debug(f"Enqueued spatialdata job {job.id} for resource {resource_id}")
 
     # update task status
     task["value"] = json.dumps({"job_id": job.id})
@@ -147,7 +147,7 @@ def dataspatial_submit(context: Context, data_dict: DataDict) -> bool:
     return True
 
 
-def dataspatial_hook(context: Context, data_dict: DataDict):
+def spatialdata_hook(context: Context, data_dict: DataDict):
     """Called occasionally from georeferencing jobs,
     providing status information to be used to update ckan task statuses.
 
@@ -206,15 +206,15 @@ def dataspatial_hook(context: Context, data_dict: DataDict):
 
     if resubmit:
         toolkit.check_access(
-            "dataspatial_submit", context, {"resource_id": resource_id}
+            "spatialdata_submit", context, {"resource_id": resource_id}
         )
         logger.debug(
             f"Resource {resource_id} has been modified. Resubmitting for georeferencing."
         )
-        toolkit.get_action("dataspatial_submit")(context, {"resource_id": resource_id})
+        toolkit.get_action("spatialdata_submit")(context, {"resource_id": resource_id})
 
 
-def dataspatial_status(context: Context, data_dict: DataDict) -> StatusResult:
+def spatialdata_status(context: Context, data_dict: DataDict) -> StatusResult:
     resource_id = toolkit.get_or_bust(data_dict, "resource_id")
     try:
         task = toolkit.get_action("task_status_show")(
@@ -249,7 +249,7 @@ def dataspatial_status(context: Context, data_dict: DataDict) -> StatusResult:
         }
 
 
-def dataspatial_populate(context: Context, data_dict: DataDict):
+def spatialdata_populate(context: Context, data_dict: DataDict):
     """Add geom column to the given resource, and optionally populate them.
 
     Either latitude_field and longitude_field or wkt_field parameters are required unless they are
@@ -272,9 +272,9 @@ def dataspatial_populate(context: Context, data_dict: DataDict):
     # update metadata if field arguments are passed
     resource = toolkit.get_action("resource_show")(context, {"id": resource_id})
 
-    lat_field = resource.get("dataspatial_latitude_field")
-    lng_field = resource.get("dataspatial_longitude_field")
-    wkt_field = resource.get("dataspatial_wkt_field")
+    lat_field = resource.get("spatialdata_latitude_field")
+    lng_field = resource.get("spatialdata_longitude_field")
+    wkt_field = resource.get("spatialdata_wkt_field")
 
     arg_lat_field = data_dict.get("latitude_field")
     arg_lng_field = data_dict.get("longitude_field")
@@ -282,19 +282,19 @@ def dataspatial_populate(context: Context, data_dict: DataDict):
 
     patch_dict = {}
     if arg_lat_field and arg_lat_field != lat_field:
-        patch_dict["dataspatial_latitude_field"] = arg_lat_field
+        patch_dict["spatialdata_latitude_field"] = arg_lat_field
     if arg_lng_field and arg_lng_field != lng_field:
-        patch_dict["dataspatial_longitude_field"] = arg_lng_field
+        patch_dict["spatialdata_longitude_field"] = arg_lng_field
     if arg_wkt_field and arg_wkt_field != wkt_field:
-        patch_dict["dataspatial_wkt_field"] = arg_wkt_field
+        patch_dict["spatialdata_wkt_field"] = arg_wkt_field
 
     # if fields are provided, update metadata with them
     resource = toolkit.get_action("resource_patch")(context, patch_dict)
 
     # ensure the resource has the minimum metadata
-    lat_field = resource.get("dataspatial_latitude_field")
-    lng_field = resource.get("dataspatial_longitude_field")
-    wkt_field = resource.get("dataspatial_wkt_field")
+    lat_field = resource.get("spatialdata_latitude_field")
+    lng_field = resource.get("spatialdata_longitude_field")
+    wkt_field = resource.get("spatialdata_wkt_field")
     if not (lat_field and lng_field) and not wkt_field:
         raise toolkit.ValidationError(
             "Missing required source column(s). Provide lat/lng fieldnames or a wkt field name."
@@ -305,19 +305,19 @@ def dataspatial_populate(context: Context, data_dict: DataDict):
 
 
 @side_effect_free
-def dataspatial_resource_list(context: Context, data_dict: DataDict):
+def spatialdata_resource_list(context: Context, data_dict: DataDict):
     active_resources = toolkit.get_action("resource_search")(
-        context, {"query": "dataspatial_status:active"}
+        context, {"query": "spatialdata_status:active"}
     )["results"]
     fields = [
         "id",
         "package_id",
         "url",
         "format",
-        "dataspatial_active",
-        "dataspatial_fields_definition",
-        "dataspatial_last_geom_updated",
-        "dataspatial_status",
+        "spatialdata_active",
+        "spatialdata_fields_definition",
+        "spatialdata_last_geom_updated",
+        "spatialdata_status",
     ]
     result = []
     for resource in active_resources:

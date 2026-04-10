@@ -1,7 +1,7 @@
 # encoding: utf-8
 from ckan.types import Context, DataDict
 
-from ckanext.dataspatial.lib.postgis import query_extent as postgis_query_extent
+from ckanext.spatialdata.lib.postgis import query_extent as postgis_query_extent
 
 
 def datastore_query_extent(context: Context, data_dict: DataDict):

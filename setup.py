@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-#
-# This file is part of ckanext-dataspatial
-# Created by the Natural History Museum in London, UK
+
 
 from setuptools import find_packages, setup
 
@@ -12,7 +10,7 @@ with open(u'README.md', u'r') as f:
     __long_description__ = f.read()
 
 setup(
-    name=u'ckanext-dataspatial',
+    name=u'ckanext-spatialdata',
     version=__version__,
     description=u'A CKAN extension that provides geospatial awareness of datastore data.',
     long_description=__long_description__,
@@ -21,22 +19,22 @@ setup(
         u'Framework :: Flask',
         u'Programming Language :: Python :: 2.7'
     ],
-    keywords=u'CKAN data dataspatial',
-    author=u'Natural History Museum',
-    author_email=u'data@nhm.ac.uk',
-    url=u'https://github.com/NaturalHistoryMuseum/ckanext-dataspatial',
-    license=u'GNU GPLv3',
+    keywords=u'CKAN data spatialdata',
+    author=u'Steve Saylor',
+    author_email=u'steven.saylor@pitt.edu',
+    url=u'https://github.com/wprdc/ckanext-spatialdata',
+    license=u'AGPLv3',
     packages=find_packages(exclude=[u'tests']),
-    namespace_packages=[u'ckanext', u'ckanext.dataspatial'],
+    namespace_packages=[u'ckanext', u'ckanext.spatialdata'],
     include_package_data=True,
     zip_safe=False,
     install_requires=[],
     entry_points= \
         u'''
         [ckan.plugins]
-            dataspatial=ckanext.dataspatial.plugin:DataSpatialPlugin
+            spatialdata=ckanext.spatialdata.plugin:spatialdataPlugin
 
         [paste.paster_command]
-            dataspatial=ckanext.dataspatial.commands.dataspatial:DataSpatialCommand
+            spatialdata=ckanext.spatialdata.commands.spatialdata:spatialdataCommand
         ''',
     )

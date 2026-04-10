@@ -4,10 +4,10 @@ import traceback
 from ckan.plugins import toolkit
 from ckan.types import Context
 
-from ckanext.dataspatial.lib import geofiles, postgis
-from ckanext.dataspatial.lib.types import StatusCallback, GeoreferenceStatus
+from ckanext.spatialdata.lib import geofiles, postgis
+from ckanext.spatialdata.lib.types import StatusCallback, GeoreferenceStatus
 
-JOB_TYPE = "dataspatial_georeference"
+JOB_TYPE = "spatialdata_georeference"
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def make_status_callback(
         if value:
             data_dict["value"] = value
 
-        return toolkit.get_action("dataspatial_hook")(context, data_dict)
+        return toolkit.get_action("spatialdata_hook")(context, data_dict)
 
     return callback
 
