@@ -22,7 +22,7 @@ from ckanext.spatialdata.search import datastore_query_extent
 from ckanext.spatialdata.validators import json_object_list
 
 
-class spatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
+class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     """ """
 
     implements(interfaces.IValidators)
