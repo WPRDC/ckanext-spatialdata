@@ -71,6 +71,8 @@ _required_.
 |--------------------------------------|----------------------------------------|--------------------|
 | `spatialdata.postgis.field`          | WGS data field in the PostGIS database | \_geom             |
 | `spatialdata.postgis.mercator_field` | Mercator field in the PostGIS database | _geom\_webmercator |
+| `spatialdata.tileserver_url`          | Public base URL of the Martin tile server, used for TileJSON links in the dataset page's "Spatially enabled" modal. Empty hides the links. | _(empty)_ |
+| `spatialdata.tile_source_id_format`   | Tile source id pattern; must match `source_id_format` for the datastore connection in Martin's config. Placeholders: `{table}`, `{column}`, `{schema}`. | table.{table}.{column} |
 
 ## Further Setup
 
@@ -141,6 +143,30 @@ toolkit.get_action('spatialdata_submit')(
 )
 ```
 
+#### `spatialdata_submit_package`
+
+Submit every eligible resource in a dataset for georeferencing. A resource is eligible if it is a
+GeoJSON file, or if it is in the datastore and has latitude/longitude or WKT fields configured.
+Sysadmins only.
+
+```shell
+curl -X POST https://data.wprdc.org/api/3/action/spatialdata_submit_package \
+   -H 'Content-Type: application/json' \
+   -H 'Authorization: <API_TOKEN>' \
+   -d '{"id": "<DATASET_ID_OR_NAME>"}'
+```
+
+Returns the dataset id, the ids of the resources that were `submitted`, and the resources that were
+`skipped`, each with a `reason`:
+
+```json
+{
+  "package_id": "<DATASET_ID>",
+  "submitted": ["<RESOURCE_ID>"],
+  "skipped": [{"resource_id": "<RESOURCE_ID>", "reason": "No latitude/longitude or WKT field configured on the resource."}]
+}
+```
+
 #### `spatialdata_status`
 
 Get georeferencing status of a resource with the following data:
@@ -154,7 +180,9 @@ Get georeferencing status of a resource with the following data:
 | notes          | Description of current status                     |
 
 ```shell
-curl -X GET https://data.wprdc.org/api/action/spatialdata_status?resource_id=<RESOURCE_ID>
+curl -X POST https://data.wprdc.org/api/3/action/spatialdata_status \
+   -H 'Content-Type: application/json' \
+   -d '{"resource_id": "<RESOURCE_ID>"}'
 ```
 
 ```python

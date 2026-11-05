@@ -2,6 +2,7 @@
 import datetime
 import json
 import logging
+from typing import Optional
 
 import ckan.lib.jobs as rq_jobs
 from ckan.logic import NotFound, side_effect_free
@@ -35,6 +36,7 @@ def spatialdata_submit(context: Context, data_dict: DataDict) -> bool:
     """
     # validate arguments and setup first
     resource_id = toolkit.get_or_bust(data_dict, "resource_id")
+    toolkit.check_access("spatialdata_submit", context, data_dict)
     try:
         resource_dict = toolkit.get_action("resource_show")(
             context,
@@ -44,7 +46,7 @@ def spatialdata_submit(context: Context, data_dict: DataDict) -> bool:
         )
         if (
             not resource_dict.get("datastore_active")
-            and resource_dict.get("format").lower() != "geojson"
+            and (resource_dict.get("format") or "").lower() != "geojson"
         ):
             raise toolkit.ValidationError(
                 "Resource data must be loaded into the datastore."
@@ -113,7 +115,7 @@ def spatialdata_submit(context: Context, data_dict: DataDict) -> bool:
         "state": "submitting",
         "key": TASK_KEY,
         "value": "{}",
-        "error": None,
+        "error": "",
     }
     if extant_task_id:
         task["id"] = extant_task_id
@@ -140,11 +142,67 @@ def spatialdata_submit(context: Context, data_dict: DataDict) -> bool:
     task["value"] = json.dumps({"job_id": job.id})
     task["state"] = GeoreferenceStatus.SUBMITTING.value
     task["last_updated"] = str(datetime.datetime.utcnow())
-    task["error"] = None
+    task["error"] = ""
     toolkit.get_action("task_status_update")(
         {"session": model.meta.create_local_session(), "ignore_auth": True}, task
     )
     return True
+
+
+def _georeference_skip_reason(resource: dict) -> Optional[str]:
+    """Why a resource can't be georeferenced, or None if it can."""
+    if (resource.get("format") or "").lower() == "geojson":
+        return None
+    if not resource.get("datastore_active"):
+        return "Resource is not a GeoJSON file and is not in the datastore."
+    has_lat_lng = resource.get("spatialdata_latitude_field") and resource.get(
+        "spatialdata_longitude_field"
+    )
+    if not has_lat_lng and not resource.get("spatialdata_wkt_field"):
+        return "No latitude/longitude or WKT field configured on the resource."
+    return None
+
+
+def spatialdata_submit_package(context: Context, data_dict: DataDict) -> dict:
+    """Submit every eligible resource in a dataset to be georeferenced.
+
+    A resource is eligible if it is a GeoJSON file, or if it is in the
+    datastore and has latitude/longitude or WKT fields configured.
+
+    :param id: the id or name of the dataset
+    :returns: ``package_id``, the ``submitted`` resource ids, and the
+        ``skipped`` resources, each with a ``resource_id`` and ``reason``.
+    """
+    package_id = toolkit.get_or_bust(data_dict, "id")
+    toolkit.check_access("spatialdata_submit_package", context, data_dict)
+
+    def fresh_context() -> Context:
+        return {
+            "user": context.get("user"),
+            "ignore_auth": context.get("ignore_auth", False),
+        }
+
+    pkg = toolkit.get_action("package_show")(fresh_context(), {"id": package_id})
+
+    submitted: list[str] = []
+    skipped: list[dict] = []
+    for resource in pkg.get("resources", []):
+        reason = _georeference_skip_reason(resource)
+        if not reason:
+            try:
+                queued = toolkit.get_action("spatialdata_submit")(
+                    fresh_context(), {"resource_id": resource["id"]}
+                )
+                if not queued:
+                    reason = "A georeferencing job is already queued or could not be enqueued."
+            except toolkit.ValidationError as e:
+                reason = str(e.error_dict or e)
+        if reason:
+            skipped.append({"resource_id": resource["id"], "reason": reason})
+        else:
+            submitted.append(resource["id"])
+
+    return {"package_id": pkg["id"], "submitted": submitted, "skipped": skipped}
 
 
 def spatialdata_hook(context: Context, data_dict: DataDict):
@@ -164,6 +222,7 @@ def spatialdata_hook(context: Context, data_dict: DataDict):
         data_dict,
         ["resource_id", "status", "job_created"],
     )
+    toolkit.check_access("spatialdata_hook", context, data_dict)
 
     task = toolkit.get_action("task_status_show")(
         context, {"entity_id": resource_id, "task_type": TASK_TYPE, "key": TASK_KEY}
@@ -199,7 +258,7 @@ def spatialdata_hook(context: Context, data_dict: DataDict):
     # update task status
     task["state"] = status.value
     task["last_updated"] = str(datetime.datetime.utcnow())
-    task["error"] = error
+    task["error"] = error or ""  # None is ignored by task_status_update
     task["value"] = json.dumps(value)
     context["ignore_auth"] = True
     toolkit.get_action("task_status_update")(context, task)

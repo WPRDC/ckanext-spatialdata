@@ -1,5 +1,4 @@
-pyutilib
-geomet
-python-dateutil
-requests[security]
-geojson
+geomet>=1.1.0,<2
+geojson>=3.3.0,<4
+# CKAN 2.12 pins python-dateutil==2.9.0.post0, so stay on 2.x
+python-dateutil>=2.9.0,<3

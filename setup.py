@@ -26,7 +26,12 @@ setup(
     namespace_packages=['ckanext'],
     include_package_data=True,
     zip_safe=False,
-    install_requires=[],
+    python_requires='>=3.10',
+    install_requires=[
+        'geomet>=1.1.0,<2',
+        'geojson>=3.3.0,<4',
+        'python-dateutil>=2.9.0,<3',
+    ],
     entry_points='''
         [ckan.plugins]
         spatialdata=ckanext.spatialdata.plugin:SpatialdataPlugin

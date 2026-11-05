@@ -9,7 +9,17 @@ from geomet import wkt, wkb
 
 from ckanext.spatialdata.lib.db import get_connection
 
-DEFAULT_CONTEXT = {"user": "default"}
+
+def site_context() -> dict:
+    """A fresh context acting as the CKAN site user (a sysadmin).
+
+    Used by background jobs and internal calls. The site user's name is
+    ``ckan.site_id``, which differs between environments, so it's looked up
+    rather than hard-coded.
+    """
+    site_user = toolkit.get_action("get_site_user")({"ignore_auth": True}, {})
+    return {"user": site_user["name"]}
+
 
 from ckan.model import parse_db_config
 

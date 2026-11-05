@@ -5,6 +5,7 @@ from ckan.plugins import toolkit
 from ckan.types import Context
 
 from ckanext.spatialdata.lib import geofiles, postgis
+from ckanext.spatialdata.lib.util import site_context
 from ckanext.spatialdata.lib.types import StatusCallback, GeoreferenceStatus
 
 JOB_TYPE = "spatialdata_georeference"
@@ -46,11 +47,11 @@ def georeference_datastore_table(
     logger,
 ) -> None:
     status_callback = make_status_callback(
-        resource_id, job_created, {"user": "default"}
+        resource_id, job_created, site_context()
     )
 
     resource = toolkit.get_action("resource_show")(
-        {"user": "default"},
+        site_context(),
         {"id": resource_id},
     )
 

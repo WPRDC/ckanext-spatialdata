@@ -1,0 +1,19 @@
+{#
+  Badge shown on a dataset page when at least one of its resources
+  has been georeferenced by ckanext-spatialdata. Clicking it opens
+  spatialdata/snippets/processed_modal.html.
+
+  pkg - the package dict
+#}
+{% if h.spatialdata_package_is_processed(pkg) %}
+  <div class="spatialdata-badge-wrapper mb-2">
+  <button type="button"
+          class="badge spatialdata-badge"
+          data-bs-toggle="modal"
+          data-bs-target="#spatialdata-modal"
+          title="{{ _('This dataset has been georeferenced. Click for details.') }}">
+    <i class="fa fa-map" aria-hidden="true"></i>
+    {{ _('Mappable') }}
+  </button>
+  </div>
+{% endif %}
