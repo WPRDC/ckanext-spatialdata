@@ -1,0 +1,40 @@
+.spatialdata-map {
+  position: relative;
+}
+
+.spatialdata-map-canvas {
+  /* Fixed height: the view's iframe is sized to its content, so a
+     percentage or vh height would collapse. */
+  height: 550px;
+  width: 100%;
+}
+
+.spatialdata-map-zoom-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+
+.spatialdata-map-popup {
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+
+.spatialdata-map-popup th {
+  padding-right: 8px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.spatialdata-map-popup td {
+  word-break: break-word;
+}

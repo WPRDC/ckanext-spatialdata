@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Optional
 
+import ckan.lib.datapreview as datapreview
 import ckan.lib.jobs as rq_jobs
 from ckan.logic import NotFound, side_effect_free
 from ckan.plugins import toolkit
@@ -205,6 +206,26 @@ def spatialdata_submit_package(context: Context, data_dict: DataDict) -> dict:
     return {"package_id": pkg["id"], "submitted": submitted, "skipped": skipped}
 
 
+def _add_map_view(context: Context, resource_id: str) -> None:
+    """Give a newly georeferenced resource a map view, unless it has one.
+
+    Skipped (by the view's ``can_view``) when no tile server is configured.
+    Failures are logged rather than raised so they can't fail the job.
+    """
+    # imported here: plugin.py imports this module
+    from ckanext.spatialdata.plugin import VIEW_TYPE
+
+    try:
+        resource = toolkit.get_action("resource_show")(context, {"id": resource_id})
+        created = datapreview.add_views_to_resource(
+            context, resource, view_types=[VIEW_TYPE]
+        )
+        if created:
+            logger.info(f"Added map view to resource {resource_id}")
+    except Exception:
+        logger.exception(f"Could not add map view to resource {resource_id}")
+
+
 def spatialdata_hook(context: Context, data_dict: DataDict):
     """Called occasionally from georeferencing jobs,
     providing status information to be used to update ckan task statuses.
@@ -235,8 +256,6 @@ def spatialdata_hook(context: Context, data_dict: DataDict):
             context, {"id": resource_id}
         )
 
-        # todo: Create default views for resource if necessary (if using tileserver)
-
         # Check if the uploaded file has been modified in the meantime
         if resource_dict.get("last_modified") and job_created:
             try:
@@ -262,6 +281,9 @@ def spatialdata_hook(context: Context, data_dict: DataDict):
     task["value"] = json.dumps(value)
     context["ignore_auth"] = True
     toolkit.get_action("task_status_update")(context, task)
+
+    if status == GeoreferenceStatus.COMPLETE and not resubmit:
+        _add_map_view(context, resource_id)
 
     if resubmit:
         toolkit.check_access(

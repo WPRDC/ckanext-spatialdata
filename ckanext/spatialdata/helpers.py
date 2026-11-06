@@ -27,6 +27,26 @@ def spatialdata_package_is_processed(pkg: dict) -> bool:
     )
 
 
+def spatialdata_tile_source(resource_id: str) -> dict:
+    """Martin vector tile source for a resource's geometry column.
+
+    Returns ``source_id`` (also the layer name inside the tiles) and
+    ``tilejson_url`` (None if no tile server is configured).
+    """
+    from ckanext.spatialdata.config import config
+    from ckanext.spatialdata.lib.postgis import GEOM_FIELD
+
+    tileserver_url = (config.get("tileserver_url") or "").rstrip("/")
+    source_id_format = config.get("tile_source_id_format") or "table.{table}.{column}"
+    source_id = source_id_format.format(
+        table=resource_id, column=GEOM_FIELD, schema="public"
+    )
+    return {
+        "source_id": source_id,
+        "tilejson_url": f"{tileserver_url}/{source_id}" if tileserver_url else None,
+    }
+
+
 # Downtown Pittsburgh; only used to make the example query concrete.
 _EXAMPLE_ENVELOPE = (-80.0200, 40.4350, -79.9900, 40.4500)
 
@@ -40,11 +60,8 @@ def spatialdata_processed_resources(pkg: dict) -> list[dict]:
     server is configured).
     """
     # imported here to avoid loading the db layer when templates load helpers
-    from ckanext.spatialdata.config import config
     from ckanext.spatialdata.lib.postgis import GEOM_FIELD
 
-    tileserver_url = (config.get("tileserver_url") or "").rstrip("/")
-    source_id_format = config.get("tile_source_id_format") or "table.{table}.{column}"
     xmin, ymin, xmax, ymax = _EXAMPLE_ENVELOPE
 
     resources = []
@@ -59,12 +76,7 @@ def spatialdata_processed_resources(pkg: dict) -> list[dict]:
             f")\n"
             f"LIMIT 100"
         )
-        tilejson_url = None
-        if tileserver_url:
-            source_id = source_id_format.format(
-                table=res["id"], column=GEOM_FIELD, schema="public"
-            )
-            tilejson_url = f"{tileserver_url}/{source_id}"
+        tilejson_url = spatialdata_tile_source(res["id"])["tilejson_url"]
         resources.append(
             {
                 "id": res["id"],

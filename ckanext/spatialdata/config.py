@@ -13,4 +13,11 @@ config = {
     # Must match `source_id_format` for the datastore connection in
     # martin/config.yaml. Placeholders: {table}, {column}, {schema}.
     "tile_source_id_format": "table.{table}.{column}",
+    # Map resource view (spatialdata_view).
+    # MapLibre style JSON used as the basemap under the resource's tiles.
+    "basemap_style_url": "https://tiles.openfreemap.org/styles/positron",
+    # Lowest zoom the tile server serves for datastore tables; should match
+    # `minzoom` for the datastore connection in martin/config.yaml. Below it
+    # the map asks the user to zoom in.
+    "tile_minzoom": "0",
 }

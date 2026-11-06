@@ -6,3 +6,33 @@ spatialdata-js:
       - base/main
   contents:
     - spatialdata-copy.js
+
+# Map resource view (spatialdata_view). MapLibre is already minified, so it
+# is kept out of the rjsmin bundle.
+maplibre-js:
+  output: spatialdata/%(version)s_maplibre-gl.js
+  contents:
+    - vendor/maplibre-gl/maplibre-gl.js
+
+maplibre-css:
+  output: spatialdata/%(version)s_maplibre-gl.css
+  contents:
+    - vendor/maplibre-gl/maplibre-gl.css
+
+map-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_spatialdata-map.js
+  extra:
+    preload:
+      - base/main
+      - spatialdata/maplibre-js
+  contents:
+    - spatialdata-map.js
+
+map-css:
+  output: spatialdata/%(version)s_spatialdata-map.css
+  extra:
+    preload:
+      - spatialdata/maplibre-css
+  contents:
+    - spatialdata-map.css

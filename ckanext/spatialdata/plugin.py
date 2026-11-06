@@ -1,9 +1,10 @@
 # encoding: utf-8
-from typing import cast
+import logging
+from typing import Any, cast
 
 from ckan.common import CKANConfig
 from ckan.plugins import SingletonPlugin, implements, interfaces, toolkit
-from ckan.types import Schema
+from ckan.types import Context, Schema
 
 from ckanext.spatialdata import auth, cli, views
 from ckanext.spatialdata.actions import (
@@ -18,6 +19,7 @@ from ckanext.spatialdata.helpers import (
     spatialdata_package_is_processed,
     spatialdata_processed_resources,
     spatialdata_status_description,
+    spatialdata_tile_source,
 )
 from ckanext.spatialdata.schema import (
     spatialdata_modify_resource_schema,
@@ -25,6 +27,10 @@ from ckanext.spatialdata.schema import (
 )
 from ckanext.spatialdata.search import datastore_query_extent
 from ckanext.spatialdata.validators import json_object_list
+
+log = logging.getLogger(__name__)
+
+VIEW_TYPE = "spatialdata_view"
 
 
 class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
@@ -39,6 +45,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     implements(interfaces.IConfigurer)
     implements(interfaces.IBlueprint)
     implements(interfaces.ITemplateHelpers)
+    implements(interfaces.IResourceView, inherit=True)
 
     # IValidators
     def get_validators(self):
@@ -141,3 +148,46 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             "spatialdata_package_is_processed": spatialdata_package_is_processed,
             "spatialdata_processed_resources": spatialdata_processed_resources,
         }
+
+    # IResourceView
+    def info(self) -> dict[str, Any]:
+        return {
+            "name": VIEW_TYPE,
+            "title": toolkit._("Map"),
+            "default_title": toolkit._("Map"),
+            "icon": "map",
+            "requires_datastore": True,
+            "iframed": True,
+            "preview_enabled": False,
+        }
+
+    def can_view(self, data_dict: dict[str, Any]) -> bool:
+        # Tiles come from the tile server, so without one there's nothing to draw.
+        return bool(config.get("tileserver_url")) and toolkit.asbool(
+            data_dict["resource"].get("spatialdata_active")
+        )
+
+    def setup_template_variables(
+        self, context: Context, data_dict: dict[str, Any]
+    ) -> dict[str, Any]:
+        from ckanext.spatialdata.lib.postgis import resource_extent
+
+        resource_id = data_dict["resource"]["id"]
+        tile_source = spatialdata_tile_source(resource_id)
+        try:
+            bounds = resource_extent(resource_id)
+        except Exception:
+            # The map still works without bounds; it just starts zoomed out.
+            log.exception(f"Could not compute the extent of {resource_id}")
+            bounds = None
+
+        return {
+            "tilejson_url": tile_source["tilejson_url"],
+            "source_layer": tile_source["source_id"],
+            "basemap_style_url": config.get("basemap_style_url"),
+            "tile_minzoom": config.get("tile_minzoom") or 0,
+            "bounds": bounds,
+        }
+
+    def view_template(self, context: Context, data_dict: dict[str, Any]) -> str:
+        return "spatialdata/spatialdata_view.html"
