@@ -7,6 +7,8 @@
 
 {% block title %}{{ h.dataset_display_name(package) }}&mdash;{{ h.resource_display_name(resource) }} - {{ super() }}{% endblock %}
 
+{% block bodytag %}{{ super() }} class="spatialdata-view"{% endblock %}
+
 {% block page %}
   <div class="spatialdata-map"
        data-module="spatialdata-map"

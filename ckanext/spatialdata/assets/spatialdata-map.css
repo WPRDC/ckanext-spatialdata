@@ -1,11 +1,20 @@
+/* CKAN's data-viewer module sizes the view's iframe to the body's height plus
+   30px of padding. The body is a fixed-height spacer that sets that height,
+   and the map is fixed to the whole window, so it fills the iframe (padding
+   included) and also fills the page when the view is opened full screen. */
+body.spatialdata-view {
+  height: 550px;
+  margin: 0;
+  overflow: hidden;
+}
+
 .spatialdata-map {
-  position: relative;
+  position: fixed;
+  inset: 0;
 }
 
 .spatialdata-map-canvas {
-  /* Fixed height: the view's iframe is sized to its content, so a
-     percentage or vh height would collapse. */
-  height: 550px;
+  height: 100%;
   width: 100%;
 }
 
