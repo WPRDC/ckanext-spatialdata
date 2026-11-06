@@ -1,0 +1,13 @@
+{% ckan_extends %}
+
+{#
+  The badge sits just above the dataset title rather than inside the <h1>
+  (so it isn't part of the heading's text). It can't go below the title:
+  that slot is the package_notes block, which ckanext-scheming overrides
+  without calling super().
+#}
+{% block package_description %}
+  {% snippet "spatialdata/snippets/processed_badge.html", pkg=pkg %}
+  {{ super() }}
+  {% snippet "spatialdata/snippets/processed_modal.html", pkg=pkg %}
+{% endblock %}

@@ -18,6 +18,11 @@ def get_blueprints():
 
 def render_resource_data_view(package_id: str, resource_id: str):
     try:
+        toolkit.check_access("spatialdata_submit", {}, {"resource_id": resource_id})
+    except logic.NotAuthorized:
+        base.abort(403, _("Only sysadmins can georeference resources."))
+
+    try:
         pkg_dict = toolkit.get_action("package_show")({}, {"id": package_id})
         resource = toolkit.get_action("resource_show")({}, {"id": resource_id})
 
@@ -30,15 +35,18 @@ def render_resource_data_view(package_id: str, resource_id: str):
 
     # get job status
     status: StatusResult = toolkit.get_action("spatialdata_status")(
-        {"user": "default"},
+        {},
         {"resource_id": resource_id},
     )
 
     return base.render(
         "spatialdata/resource_spatialdata.html",
         extra_vars={
+            # resource_edit_base.html and its parents expect these names
+            "pkg": pkg_dict,
             "pkg_dict": pkg_dict,
             "resource": resource,
+            "res": resource,
             "status": status,
         },
     )
@@ -47,9 +55,14 @@ def render_resource_data_view(package_id: str, resource_id: str):
 class ResourceDataView(MethodView):
     def post(self, id: str, resource_id: str):
         """Submit job and return its status"""
-        toolkit.get_action("spatialdata_submit")(
-            {"user": "default"}, {"resource_id": resource_id}
-        )
+        try:
+            toolkit.get_action("spatialdata_submit")(
+                {"user": toolkit.current_user.name}, {"resource_id": resource_id}
+            )
+        except logic.NotAuthorized:
+            base.abort(403, _("Only sysadmins can georeference resources."))
+        except logic.ValidationError as e:
+            toolkit.h.flash_error(str(e.error_dict or e))
 
         return toolkit.redirect_to(
             "spatialdata.resource_spatialdata", id=id, resource_id=resource_id

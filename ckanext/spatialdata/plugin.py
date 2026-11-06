@@ -5,15 +5,20 @@ from ckan.common import CKANConfig
 from ckan.plugins import SingletonPlugin, implements, interfaces, toolkit
 from ckan.types import Schema
 
-from ckanext.spatialdata import cli, views
+from ckanext.spatialdata import auth, cli, views
 from ckanext.spatialdata.actions import (
     spatialdata_submit,
+    spatialdata_submit_package,
     spatialdata_hook,
     spatialdata_status,
     spatialdata_resource_list,
 )
 from ckanext.spatialdata.config import config
-from ckanext.spatialdata.helpers import spatialdata_status_description
+from ckanext.spatialdata.helpers import (
+    spatialdata_package_is_processed,
+    spatialdata_processed_resources,
+    spatialdata_status_description,
+)
 from ckanext.spatialdata.schema import (
     spatialdata_modify_resource_schema,
     spatialdata_show_resource_schema,
@@ -28,6 +33,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     implements(interfaces.IValidators)
     implements(interfaces.IConfigurable)
     implements(interfaces.IActions)
+    implements(interfaces.IAuthFunctions)
     implements(interfaces.IClick)
     implements(interfaces.IDatasetForm)
     implements(interfaces.IConfigurer)
@@ -41,6 +47,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     # IConfigurer
     def update_config(self, config_: CKANConfig):
         toolkit.add_template_directory(config_, "templates")
+        toolkit.add_resource("assets", "spatialdata")
 
     # IDatasetForm
     def _modify_package_schema(self, schema) -> Schema:
@@ -48,18 +55,18 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
         return schema
 
     def show_package_schema(self) -> Schema:
-        schema = super(spatialdataPlugin, self).show_package_schema()
+        schema = super(SpatialdataPlugin, self).show_package_schema()
         # Add our custom_text field to the dataset schema.
         cast(Schema, schema["resources"]).update(spatialdata_show_resource_schema())
         return schema
 
     def create_package_schema(self) -> Schema:
-        schema = super(spatialdataPlugin, self).create_package_schema()
+        schema = super(SpatialdataPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
         return schema
 
     def update_package_schema(self) -> Schema:
-        schema = super(spatialdataPlugin, self).update_package_schema()
+        schema = super(SpatialdataPlugin, self).update_package_schema()
         schema = self._modify_package_schema(schema)
         return schema
 
@@ -104,9 +111,18 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
         """ """
         return {
             "spatialdata_submit": spatialdata_submit,
+            "spatialdata_submit_package": spatialdata_submit_package,
             "spatialdata_hook": spatialdata_hook,
             "spatialdata_status": spatialdata_status,
             "spatialdata_resource_list": spatialdata_resource_list,
+        }
+
+    # IAuthFunctions
+    def get_auth_functions(self):
+        return {
+            "spatialdata_submit": auth.spatialdata_submit,
+            "spatialdata_submit_package": auth.spatialdata_submit_package,
+            "spatialdata_hook": auth.spatialdata_hook,
         }
 
     # IClick
@@ -120,4 +136,8 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
     # ITemplateHelpers
     def get_helpers(self):
-        return {"spatialdata_status_description": spatialdata_status_description}
+        return {
+            "spatialdata_status_description": spatialdata_status_description,
+            "spatialdata_package_is_processed": spatialdata_package_is_processed,
+            "spatialdata_processed_resources": spatialdata_processed_resources,
+        }

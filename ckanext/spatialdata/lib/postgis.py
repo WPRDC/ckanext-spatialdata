@@ -25,7 +25,7 @@ from ckanext.spatialdata.lib.types import (
     SpecificStatusCallback,
     GeoreferenceStatus,
 )
-from ckanext.spatialdata.lib.util import DEFAULT_CONTEXT, get_common_geom_type
+from ckanext.spatialdata.lib.util import get_common_geom_type, site_context
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,7 @@ def populate_postgis_columns(
     geom_type: str = "",
     connection: Optional[Connection] = None,
     status_callback: StatusCallback = lambda s, v, e: None,
+    source_srid: int = 4326,
 ):
     """Populate the PostGis columns from the give lat & long fields
 
@@ -124,6 +125,7 @@ def populate_postgis_columns(
     :param wkt_field: The Well-Known Text field to populate from
     :param wkb_field: The Well-Known Binary field to populate from
     :param geom_type: Geometry type to be used in geom columns.
+    :param source_srid: SRID of the WKB geometries; reprojected to 4326 if different.
     :param connection: Database connection. If None, one will be
         created for this operation. (Default value = None)
     :param status_callback: Callable that logs status to CKAN task table
@@ -151,6 +153,7 @@ def populate_postgis_columns(
             connection=connection,
             status_callback=status_callback,
             geom_type=geom_type,
+            source_srid=source_srid,
         )
 
 
@@ -242,6 +245,7 @@ def _populate_columns_with_wkb(
     connection=None,
     status_callback: StatusCallback = lambda s, v, e: None,
     geom_type: str = "",
+    source_srid: int = 4326,
 ):
     def _status_callback(value):
         status_callback(
@@ -252,9 +256,13 @@ def _populate_columns_with_wkb(
             },
         )
 
-    set_geom = f'ST_Force2D(ST_GeomFromWKB("{wkb_field}", 4326))'
+    source_srid = int(source_srid)
+    source_geom = f'ST_GeomFromWKB("{wkb_field}", {source_srid})'
+    if source_srid != 4326:
+        source_geom = f"ST_Transform({source_geom}, 4326)"
+    set_geom = f"ST_Force2D({source_geom})"
     if "multi" in geom_type.lower():
-        set_geom = f'ST_Multi(ST_Force2D(ST_GeomFromWKB("{wkb_field}", 4326)))'
+        set_geom = f"ST_Multi({set_geom})"
 
     source_sql = _get_rows_to_update_sql(resource_id, source_geom_field=wkb_field)
 
@@ -308,6 +316,7 @@ def prepare_and_populate_geoms(
     resource: dict,
     from_geojson_add: bool = False,
     status_callback: StatusCallback = lambda status, value, error: None,
+    source_srid: int = 4326,
 ) -> None:
     """Adds geometric data fields, geometric indexes and then populates the geometric fields based
     on extant data and spatialdata metadata.
@@ -330,6 +339,7 @@ def prepare_and_populate_geoms(
     elif from_geojson_add or wkt_field:
         if from_geojson_add:
             populate_args["wkb_field"] = WKB_FIELD_NAME
+            populate_args["source_srid"] = source_srid
             values = connect_and_get_field_values(resource["id"], WKB_FIELD_NAME, is_bytes=True)
             geom_format = "wkb"
         else:
@@ -354,7 +364,7 @@ def prepare_and_populate_geoms(
 
     # update metadata
     toolkit.get_action("resource_patch")(
-        DEFAULT_CONTEXT,
+        site_context(),
         {
             "id": resource["id"],
             "spatialdata_last_geom_updated": datetime.datetime.now().isoformat(),

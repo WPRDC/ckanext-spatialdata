@@ -1,0 +1,89 @@
+{#
+  Modal explaining what "Spatially enabled" means, with an example PostGIS
+  query and tile links for each georeferenced resource.
+
+  pkg - the package dict
+#}
+{% set spatial_resources = h.spatialdata_processed_resources(pkg) %}
+{% if spatial_resources %}
+{% asset 'spatialdata/spatialdata-js' %}
+<div class="modal fade" id="spatialdata-modal" tabindex="-1" aria-labelledby="spatialdata-modal-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="spatialdata-modal-title">
+          <i class="fa fa-map-marker" aria-hidden="true"></i>
+          {{ _('Mappable data') }}
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <p>
+          {% trans %}
+          The data in this dataset has been georeferenced: each row has a geometry stored in
+          PostGIS, so you can filter it by location and display it on a map.
+          {% endtrans %}
+        </p>
+        <ul>
+          <li>{% trans %}<code>_geom</code> holds each row's geometry in latitude/longitude (WGS84, EPSG:4326).{% endtrans %}</li>
+          <li>{% trans %}<code>_geom_webmercator</code> holds the same geometry in web mercator (EPSG:3857), used by web maps.{% endtrans %}</li>
+        </ul>
+        <p>
+          {% trans %}
+          Both columns are indexed. You can query them with PostGIS functions such as
+          <code>ST_Intersects</code> through the
+          <a href="https://docs.ckan.org/en/latest/maintaining/datastore.html#ckanext.datastore.logic.action.datastore_search_sql" target="_blank" rel="noopener">datastore_search_sql API</a>.
+          {% endtrans %}
+        </p>
+
+        {% for res in spatial_resources %}
+          <section class="spatialdata-resource {% if not loop.first %}border-top pt-3 mt-3{% endif %}">
+            <h3 class="fs-6 fw-bold">
+              <a href="{{ h.url_for(pkg.type ~ '_resource.read', id=pkg.name, resource_id=res.id) }}">{{ res.name }}</a>
+            </h3>
+
+            <p class="mb-1">
+              {{ _('Example: rows that fall within a box around downtown Pittsburgh') }}
+            </p>
+            <pre class="bg-light border rounded p-2"><code>{{ res.sql }}</code></pre>
+            <p>
+              <a class="btn btn-sm" href="{{ res.sql_api_url }}" target="_blank" rel="noopener">
+                <i class="fa fa-play" aria-hidden="true"></i> {{ _('Run this query through the API') }}
+              </a>
+            </p>
+
+            {% if res.tilejson_url %}
+              <p class="mb-1">
+                {% trans %}
+                Vector tiles: use this TileJSON URL as a source in MapLibre, Mapbox GL, QGIS
+                or other mapping tools.
+                {% endtrans %}
+              </p>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control font-monospace" readonly
+                       id="spatialdata-tilejson-{{ res.id }}"
+                       value="{{ res.tilejson_url }}"
+                       aria-label="{{ _('TileJSON URL for') }} {{ res.name }}">
+                <button type="button" class="btn"
+                        data-module="spatialdata-copy"
+                        data-module-target="#spatialdata-tilejson-{{ res.id }}"
+                        title="{{ _('Copy TileJSON URL') }}">
+                  <i class="fa fa-copy" aria-hidden="true"></i>
+                  <span class="visually-hidden">{{ _('Copy TileJSON URL') }}</span>
+                  <span class="visually-hidden" role="status" data-copy-status></span>
+                </button>
+                <a class="btn " href="{{ res.tilejson_url }}" target="_blank" rel="noopener">
+                  {{ _('Open TileJSON') }}
+                </a>
+              </div>
+            {% endif %}
+          </section>
+        {% endfor %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-bs-dismiss="modal">{{ _('Close') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

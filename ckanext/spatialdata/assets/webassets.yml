@@ -1,0 +1,8 @@
+spatialdata-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_spatialdata.js
+  extra:
+    preload:
+      - base/main
+  contents:
+    - spatialdata-copy.js

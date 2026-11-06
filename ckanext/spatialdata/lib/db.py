@@ -116,12 +116,13 @@ def index_exists(
     :param index_type: Index type (Default value = u'GIST')
     :returns: True if the index exists, False otherwise.
     """
-    indexes_table = sql.table("pg_indexes")
+    indexname = sql.column("indexname")
+    indexes_table = sql.table("pg_indexes", indexname)
 
     query: Select = (
-        sql.select([sql.func.count()])
+        sql.select(sql.func.count())
         .select_from(indexes_table)
-        .where("indexname" == _index_name(table, field, index_type))
+        .where(indexname == _index_name(table, field, index_type))
     )
 
     result = connection.execute(query).fetchone()
@@ -140,7 +141,7 @@ def fields_exist(
     :param fields: List of fields to look for
     :returns: True if all the fields exist, false if not
     """
-    query: Select = sql.select("*", from_obj=sql.table(table)).limit(0)
+    query: Select = sql.select(sql.text("*")).select_from(sql.table(table)).limit(0)
     all_fields = connection.execute(query).keys()
     for field in fields:
         if field not in all_fields:

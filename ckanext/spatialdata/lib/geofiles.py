@@ -1,6 +1,7 @@
 # encoding: utf-8
 import json
 import logging
+import re
 from typing import Any, Union, Iterable
 
 import geojson
@@ -11,7 +12,7 @@ from geomet import wkb
 from ckanext.spatialdata.lib.constants import WKB_FIELD_NAME
 from ckanext.spatialdata.lib.postgis import prepare_and_populate_geoms
 from ckanext.spatialdata.lib.types import StatusCallback, GeoreferenceStatus
-from ckanext.spatialdata.lib.util import get_resource_file_path, DEFAULT_CONTEXT
+from ckanext.spatialdata.lib.util import get_resource_file_path, site_context
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,25 @@ def to_row(feature: dict, fields: Iterable[dict]) -> dict:
     return row
 
 
+def geojson_srid(geojson_obj: dict) -> int:
+    """SRID declared by a GeoJSON object's legacy ``crs`` member.
+
+    RFC 7946 GeoJSON has no ``crs`` member and is always WGS84 (EPSG:4326),
+    but files exported from ArcGIS/QGIS often still declare one, e.g.
+    ``{"type": "name", "properties": {"name": "EPSG:2272"}}``.
+    """
+    crs = geojson_obj.get("crs")
+    if not crs:
+        return 4326
+    name = str((crs.get("properties") or {}).get("name", ""))
+    if re.search(r"CRS84$", name, re.IGNORECASE):
+        return 4326
+    match = re.search(r"EPSG:+(?:[\d.]*:)?(\d+)$", name, re.IGNORECASE)
+    if not match:
+        raise ValueError(f"Unsupported GeoJSON crs: {crs!r}")
+    return int(match.group(1))
+
+
 def load_geojson_to_datastore(
     resource_id: str,
     aliases: Union[list[str], str] = None,
@@ -89,7 +109,7 @@ def load_geojson_to_datastore(
 ):
     """Converts geojson to tabular format and loads in to the datastore"""
     resource: dict = toolkit.get_action("resource_show")(
-        DEFAULT_CONTEXT, {"id": resource_id}
+        site_context(), {"id": resource_id}
     )
     # validate
     if not resource or not resource["id"]:
@@ -102,6 +122,12 @@ def load_geojson_to_datastore(
     with open(geojson_filepath) as f:
         logger.info(f"Loading geojson from {geojson_filepath}.")
         geojson: dict = json.load(f)
+
+    source_srid = geojson_srid(geojson)
+    if source_srid != 4326:
+        logger.info(
+            f"GeoJSON for {resource_id} is in EPSG:{source_srid}; reprojecting to EPSG:4326."
+        )
 
     # find the full set of keys
     source_fields = set()
@@ -126,10 +152,10 @@ def load_geojson_to_datastore(
 
     # delete datastore table if it exists
     try:
-        toolkit.get_action("datastore_info")(DEFAULT_CONTEXT, {"id": resource_id})
+        toolkit.get_action("datastore_info")(site_context(), {"id": resource_id})
         logger.info(f"DELETING {resource_id}")
         toolkit.get_action("datastore_delete")(
-            DEFAULT_CONTEXT, {"resource_id": resource_id, "force": True}
+            site_context(), {"resource_id": resource_id, "force": True}
         )
     except NotFound:
         pass
@@ -149,10 +175,11 @@ def load_geojson_to_datastore(
         GeoreferenceStatus.WORKING,
         value={"notes": f"Creating datastore table for {resource_id}"},
     )
-    toolkit.get_action("datastore_create")({"user": "default"}, create_options)
+    toolkit.get_action("datastore_create")(site_context(), create_options)
 
     prepare_and_populate_geoms(
         resource,
         from_geojson_add=True,
+        source_srid=source_srid,
         status_callback=status_callback,
     )
