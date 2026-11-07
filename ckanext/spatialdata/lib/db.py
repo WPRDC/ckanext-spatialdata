@@ -221,5 +221,6 @@ def get_field_values(
     query: TextClause = text(f"""SELECT "{field}" FROM "{resource_id}";""")
     results: Iterable[Row] = connection.execute(query).fetchall()
     if is_bytes is True:
-        return [bytes(item[0]) for item in results]
+        # rows whose geometry failed validation have a NULL value
+        return [bytes(item[0]) if item[0] is not None else None for item in results]
     return [item[0] for item in results]

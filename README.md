@@ -73,6 +73,8 @@ _required_.
 | `spatialdata.postgis.mercator_field` | Mercator field in the PostGIS database | _geom\_webmercator |
 | `spatialdata.tileserver_url`          | Public base URL of the Martin tile server, used for TileJSON links in the dataset page's "Spatially enabled" modal. Empty hides the links. | _(empty)_ |
 | `spatialdata.tile_source_id_format`   | Tile source id pattern; must match `source_id_format` for the datastore connection in Martin's config. Placeholders: `{table}`, `{column}`, `{schema}`. | table.{table}.{column} |
+| `spatialdata.basemap_style_url`       | MapLibre style JSON used as the basemap in the Map view. | https://tiles.openfreemap.org/styles/positron |
+| `spatialdata.tile_minzoom`            | Lowest zoom the tile server serves for datastore tables. Below it the Map view asks the user to zoom in. | 0 |
 
 ## Further Setup
 
@@ -90,6 +92,21 @@ To use this extension, your PostgreSQL database must have [PostGIS](http://postg
     ```bash
     ckan spatialdata create-columns $RESOURCE_ID -c $CONFIG_FILE
     ```
+
+## Map view
+
+The plugin provides a `spatialdata_view` resource view ("Map") that draws a georeferenced
+resource with [MapLibre GL JS](https://maplibre.org/) (vendored in `assets/vendor/maplibre-gl`),
+using the resource's vector tiles from the tile server. Points, lines and polygons are all
+drawn, and clicking a feature shows its attributes.
+
+- It is offered for resources with `spatialdata_active` set, and only when
+  `spatialdata.tileserver_url` is configured.
+- A Map view is added automatically when a georeferencing job completes. For resources
+  georeferenced before this existed, add it from the resource's "Views" tab, or run
+  `ckan views create spatialdata_view`.
+- The browser loads tiles straight from the tile server, so the tile server must send CORS
+  headers that allow the CKAN site's origin.
 
 ## Usage
 

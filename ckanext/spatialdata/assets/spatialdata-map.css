@@ -1,0 +1,49 @@
+/* CKAN's data-viewer module sizes the view's iframe to the body's height plus
+   30px of padding. The body is a fixed-height spacer that sets that height,
+   and the map is fixed to the whole window, so it fills the iframe (padding
+   included) and also fills the page when the view is opened full screen. */
+body.spatialdata-view {
+  height: 550px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.spatialdata-map {
+  position: fixed;
+  inset: 0;
+}
+
+.spatialdata-map-canvas {
+  height: 100%;
+  width: 100%;
+}
+
+.spatialdata-map-zoom-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+
+.spatialdata-map-popup {
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+
+.spatialdata-map-popup th {
+  padding-right: 8px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.spatialdata-map-popup td {
+  word-break: break-word;
+}

@@ -1,0 +1,32 @@
+{#
+  Map resource view (spatialdata_view): draws a georeferenced resource from
+  its Martin vector tiles with MapLibre. Variables come from
+  SpatialdataPlugin.setup_template_variables.
+#}
+{% extends "base.html" %}
+
+{% block title %}{{ h.dataset_display_name(package) }}&mdash;{{ h.resource_display_name(resource) }} - {{ super() }}{% endblock %}
+
+{% block bodytag %}{{ super() }} class="spatialdata-view"{% endblock %}
+
+{% block page %}
+  <div class="spatialdata-map"
+       data-module="spatialdata-map"
+       data-module-tilejson="{{ tilejson_url }}"
+       data-module-source-layer="{{ source_layer }}"
+       data-module-basemap="{{ basemap_style_url }}"
+       data-module-bounds="{{ bounds | tojson | forceescape }}"
+       data-module-minzoom="{{ tile_minzoom }}">
+    <div class="spatialdata-map-canvas" role="region" aria-label="{{ _('Map of') }} {{ h.resource_display_name(resource) }}"></div>
+    <div class="spatialdata-map-zoom-hint d-none" role="status">{{ _('Zoom in to see the data') }}</div>
+    <div class="spatialdata-map-message alert alert-warning m-3 d-none" role="alert"></div>
+  </div>
+{% endblock %}
+
+{% block styles %}
+  {{ super() }}
+  {% asset 'spatialdata/map-css' %}
+  {% asset 'spatialdata/map-js' %}
+{% endblock %}
+
+{% block custom_styles %}{% endblock %}

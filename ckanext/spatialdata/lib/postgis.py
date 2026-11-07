@@ -493,3 +493,49 @@ def query_extent(data_dict: DataDict, connection: Optional[Connection] = None):
         result["bounds"] = ((r["ymin"], r["xmin"]), (r["ymax"], r["xmax"]))
     return result
 
+
+
+def resource_extent(resource_id: str) -> Optional[list[float]]:
+    """Bounding box of a georeferenced resource's geometries.
+
+    Uses the planner statistics (``ST_EstimatedExtent``) when the table has
+    been analyzed, which is instant but slightly generous; otherwise falls
+    back to scanning the table with ``ST_Extent``.
+
+    Each query gets its own connection, so a failed estimate can't abort
+    the transaction the exact query runs in.
+
+    :param resource_id: The resource (datastore table) to measure
+    :returns: ``[xmin, ymin, xmax, ymax]`` in EPSG:4326, or None if the
+        table has no geometries.
+    """
+    from sqlalchemy import text
+
+    geom_field = config["postgis.field"]
+    estimated = text(
+        "SELECT ST_XMin(e), ST_YMin(e), ST_XMax(e), ST_YMax(e) "
+        "FROM (SELECT ST_EstimatedExtent('public', :table, :column) AS e) s"
+    )
+    exact = text(
+        f'SELECT ST_XMin(e), ST_YMin(e), ST_XMax(e), ST_YMax(e) '
+        f'FROM (SELECT ST_Extent("{geom_field}") AS e FROM "{resource_id}") s'
+    )
+
+    row = None
+    try:
+        with get_connection() as c:
+            row = c.execute(
+                estimated, {"table": resource_id, "column": geom_field}
+            ).fetchone()
+    except Exception:
+        # no statistics yet, or an older PostGIS that raises instead of
+        # returning NULL
+        row = None
+
+    if not row or row[0] is None:
+        with get_connection() as c:
+            row = c.execute(exact).fetchone()
+
+    if not row or row[0] is None:
+        return None
+    return [float(v) for v in row]

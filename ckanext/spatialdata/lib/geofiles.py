@@ -21,14 +21,16 @@ def validate_sub_geoms(geom_type, sub_geom_type, coords):
     """
     Validates set of geometries returning only the valid ones
     """
-    valid_sub_geoms = []
+    valid_sub_coords = []
     for sub_coords in coords:
         sub_geom = sub_geom_type(sub_coords)
         if sub_geom.is_valid:
-            valid_sub_geoms.append(sub_geom)
+            valid_sub_coords.append(sub_coords)
 
-    if valid_sub_geoms:
-        return geom_type(coords)
+    if valid_sub_coords:
+        # build from the valid parts only, so one bad part doesn't drop the
+        # whole collection
+        return geom_type(valid_sub_coords)
     return None
 
 
@@ -140,6 +142,12 @@ def load_geojson_to_datastore(
         for feature in geojson["features"]
         if feature["geometry"]
     ]
+    invalid_count = sum(1 for r in records if r[WKB_FIELD_NAME] is None)
+    if invalid_count:
+        logger.warning(
+            f"{invalid_count} of {len(records)} features in {resource_id} have "
+            f"invalid geometries; they are loaded without a geometry."
+        )
 
     fields = resource.get("spatialdata_fields_definition")
     if not fields:
