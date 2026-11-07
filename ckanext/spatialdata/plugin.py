@@ -184,6 +184,11 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
         resource_id = data_dict["resource"]["id"]
         tile_source = spatialdata_tile_source(resource_id)
+        if not tile_source["tilejson_url"]:
+            # A Map view made while a tile server was configured can outlive
+            # the setting; the template shows a notice instead of a map.
+            return {"tilejson_url": None}
+
         try:
             bounds = resource_extent(resource_id)
         except Exception:

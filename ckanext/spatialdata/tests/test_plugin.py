@@ -78,6 +78,10 @@ class TestCanView:
 
 
 class TestSetupTemplateVariables:
+    @pytest.fixture(autouse=True)
+    def tileserver(self, spatialdata_config):
+        spatialdata_config(tileserver_url="https://tiles.example.org")
+
     def test_tiles_bounds_and_settings(self, plugin, spatialdata_config, extent):
         spatialdata_config(
             tileserver_url="https://tiles.example.org/",
@@ -122,3 +126,11 @@ class TestSetupTemplateVariables:
         monkeypatch.setattr(postgis, "resource_extent", broken)
         variables = plugin.setup_template_variables({}, view_data())
         assert variables["bounds"] is None
+
+    def test_without_tileserver_skips_map_and_extent(
+        self, plugin, spatialdata_config, extent
+    ):
+        # a Map view made while a tile server was configured can outlive it
+        spatialdata_config(tileserver_url="")
+        assert plugin.setup_template_variables({}, view_data()) == {"tilejson_url": None}
+        assert extent == []
