@@ -96,27 +96,69 @@ To use this extension, your PostgreSQL database must have [PostGIS](http://postg
 ## Map view
 
 The plugin provides a `spatialdata_view` resource view ("Map") that draws a georeferenced
-resource with [MapLibre GL JS](https://maplibre.org/) (vendored in `assets/vendor/maplibre-gl`),
-using the resource's vector tiles from the tile server. Points, lines and polygons are all
-drawn, and clicking a feature shows its attributes.
+resource with [MapLibre GL JS](https://maplibre.org/), using the resource's vector tiles
+from the tile server. Points, lines and polygons are all drawn, and clicking a feature shows
+its attributes.
 
 - It is offered for resources with `spatialdata_active` set, and only when
   `spatialdata.tileserver_url` is configured.
 - A Map view is added automatically when a georeferencing job completes. For resources
   georeferenced before this existed, add it from the resource's "Views" tab, or run
   `ckan views create spatialdata_view`.
-- Each Map view has a **Map style** setting: a JSON list of
-  [MapLibre layers](https://maplibre.org/maplibre-style-spec/layers/) (fill, line, circle,
-  symbol, heatmap or fill-extrusion) drawn from the resource, edited in a code editor
-  (CodeMirror 5, vendored in `assets/vendor/codemirror`). `id`, `source` and `source-layer`
-  are filled in. Style by column with expressions such as `["get", "column"]`. The editor
-  checks the style as you type with MapLibre's style validator (`maplibre-gl-style-spec`,
-  vendored in `assets/vendor/maplibre-gl-style-spec`) and won't save while it has problems;
-  Preview shows the result on the map. The server only checks the JSON, list shape and layer
-  types, so styles set through the API aren't fully validated; problems in those show as
-  errors on the map. The default style (`lib/map_style.py`) is used when none is set.
 - The browser loads tiles straight from the tile server, so the tile server must send CORS
   headers that allow the CKAN site's origin.
+
+### Map style
+
+Each Map view has a **Map style** setting: a JSON list of
+[MapLibre layers](https://maplibre.org/maplibre-style-spec/layers/) drawn from the resource,
+bottom to top. Leave out `id`, `source` and `source-layer`; the view fills them in, so a style
+can only draw the view's own resource. Layer types: `fill`, `line`, `circle`, `symbol`,
+`heatmap` and `fill-extrusion`. When no style is set, the default in `lib/map_style.py` is
+used: one fill, line and circle layer, so any geometry type renders.
+
+Style by a column with expressions such as `["get", "column"]`. For example, to color
+polygons by a `ZONE` column and outline them:
+
+```json
+[
+  {
+    "type": "fill",
+    "paint": {
+      "fill-color": ["match", ["get", "ZONE"], "R1", "#4c9f70", "C1", "#e4572e", "#888888"],
+      "fill-opacity": 0.5
+    }
+  },
+  {"type": "line", "paint": {"line-color": "#222222", "line-width": 1}}
+]
+```
+
+The style is edited on the view's settings page in a code editor with JSON highlighting.
+It is checked as you type with MapLibre's style validator: problems are listed by layer,
+and the view can't be saved until they are fixed. Preview shows the result on the map
+before saving. "Reset to default" puts back the default style.
+
+A style can also be set through the API, as a JSON string in the view's `style` field:
+
+```shell
+curl -X POST https://data.wprdc.org/api/3/action/resource_view_patch \
+   -H 'Content-Type: application/json' \
+   -H 'Authorization: <API_TOKEN>' \
+   -d '{"id": "<VIEW_ID>", "style": "[{\"type\": \"circle\", \"paint\": {\"circle-color\": \"#e4572e\"}}]"}'
+```
+
+The server checks the JSON, the list shape and the layer types, but not paint or layout
+values; those are only checked in the editor. A style set through the API with a bad value
+still saves, and the map shows the problem as a style error. Setting a style identical to
+the default clears it, so the view keeps following the default.
+
+### Vendored libraries
+
+| Library | Version | Path | Used by |
+|---------|---------|------|---------|
+| [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) (BSD-3-Clause) | 5.6.0 | `assets/vendor/maplibre-gl` | the map |
+| [CodeMirror](https://codemirror.net/5/) (MIT) | 5.65.18 | `assets/vendor/codemirror` | the style editor |
+| [maplibre-gl-style-spec](https://github.com/maplibre/maplibre-style-spec) (BSD-3-Clause) | 23.3.0 | `assets/vendor/maplibre-gl-style-spec` | style validation in the editor; keep it on the version MapLibre GL JS depends on |
 
 ## Usage
 
