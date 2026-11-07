@@ -15,6 +15,7 @@ from ckanext.spatialdata.actions import (
     spatialdata_resource_list,
 )
 from ckanext.spatialdata.config import config
+from ckanext.spatialdata.lib import map_style
 from ckanext.spatialdata.helpers import (
     spatialdata_package_is_processed,
     spatialdata_processed_resources,
@@ -147,6 +148,9 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             "spatialdata_status_description": spatialdata_status_description,
             "spatialdata_package_is_processed": spatialdata_package_is_processed,
             "spatialdata_processed_resources": spatialdata_processed_resources,
+            "spatialdata_default_map_style": lambda: map_style.dumps(
+                map_style.DEFAULT_LAYERS
+            ),
         }
 
     # IResourceView
@@ -158,7 +162,13 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             "icon": "map",
             "requires_datastore": True,
             "iframed": True,
-            "preview_enabled": False,
+            "preview_enabled": True,
+            "schema": {
+                "style": [
+                    toolkit.get_validator("ignore_empty"),
+                    map_style.map_style_validator,
+                ],
+            },
         }
 
     def can_view(self, data_dict: dict[str, Any]) -> bool:
@@ -181,13 +191,20 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             log.exception(f"Could not compute the extent of {resource_id}")
             bounds = None
 
+        layers, style_error = map_style.layers_for_view(data_dict.get("resource_view"))
+
         return {
             "tilejson_url": tile_source["tilejson_url"],
             "source_layer": tile_source["source_id"],
             "basemap_style_url": config.get("basemap_style_url"),
             "tile_minzoom": config.get("tile_minzoom") or 0,
             "bounds": bounds,
+            "layers": layers,
+            "style_error": style_error,
         }
 
     def view_template(self, context: Context, data_dict: dict[str, Any]) -> str:
         return "spatialdata/spatialdata_view.html"
+
+    def form_template(self, context: Context, data_dict: dict[str, Any]) -> str:
+        return "spatialdata/spatialdata_view_form.html"

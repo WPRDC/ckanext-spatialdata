@@ -16,10 +16,13 @@
        data-module-source-layer="{{ source_layer }}"
        data-module-basemap="{{ basemap_style_url }}"
        data-module-bounds="{{ bounds | tojson | forceescape }}"
-       data-module-minzoom="{{ tile_minzoom }}">
+       data-module-minzoom="{{ tile_minzoom }}"
+       data-module-layers="{{ layers | tojson | forceescape }}"
+       {# only when set: CKAN reads an empty data-module-* attribute as true #}
+       {% if style_error %}data-module-style-error="{{ style_error }}"{% endif %}>
     <div class="spatialdata-map-canvas" role="region" aria-label="{{ _('Map of') }} {{ h.resource_display_name(resource) }}"></div>
     <div class="spatialdata-map-zoom-hint d-none" role="status">{{ _('Zoom in to see the data') }}</div>
-    <div class="spatialdata-map-message alert alert-warning m-3 d-none" role="alert"></div>
+    <div class="spatialdata-map-message alert alert-warning d-none" role="alert"></div>
   </div>
 {% endblock %}
 

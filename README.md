@@ -105,6 +105,16 @@ drawn, and clicking a feature shows its attributes.
 - A Map view is added automatically when a georeferencing job completes. For resources
   georeferenced before this existed, add it from the resource's "Views" tab, or run
   `ckan views create spatialdata_view`.
+- Each Map view has a **Map style** setting: a JSON list of
+  [MapLibre layers](https://maplibre.org/maplibre-style-spec/layers/) (fill, line, circle,
+  symbol, heatmap or fill-extrusion) drawn from the resource, edited in a code editor
+  (CodeMirror 5, vendored in `assets/vendor/codemirror`). `id`, `source` and `source-layer`
+  are filled in. Style by column with expressions such as `["get", "column"]`. The editor
+  checks the style as you type with MapLibre's style validator (`maplibre-gl-style-spec`,
+  vendored in `assets/vendor/maplibre-gl-style-spec`) and won't save while it has problems;
+  Preview shows the result on the map. The server only checks the JSON, list shape and layer
+  types, so styles set through the API aren't fully validated; problems in those show as
+  errors on the map. The default style (`lib/map_style.py`) is used when none is set.
 - The browser loads tiles straight from the tile server, so the tile server must send CORS
   headers that allow the CKAN site's origin.
 
