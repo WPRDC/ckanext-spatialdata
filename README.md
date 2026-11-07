@@ -20,7 +20,6 @@ This extension provides geospatial awareness of datastore data. This includes:
 - Pushing GeoJSON data (properties and geometries) in to the datastore;
 - Support for [PostGIS](http://postgis.net);
 - Support for tile servers that injest PostGIS data. (e.g. [martin](https://github.com/maplibre/martin)).
-- _todo: Spatial extent of datastore searches_
 
 ## Installation
 
