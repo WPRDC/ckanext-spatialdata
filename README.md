@@ -302,7 +302,23 @@ search = toolkit.get_action(u'datastore_search')(context, search_params)
 
 ## Testing
 
-_tests coming soon_
+The tests in `ckanext/spatialdata/tests` are unit tests: they cover the map view and its
+style handling, the template helpers, geometry validation and the validators, and need no
+datastore, Solr or Redis. CKAN still needs an initialised (empty) database to start, so use a
+dedicated test database, never one with real data. `conftest.py` blocks CKAN's
+database-resetting fixtures (`clean_db`, `reset_db` and others) as a further guard.
+
+In the ckan-docker dev container (`ckan_test` is created by the Postgres init scripts):
+
+```bash
+docker compose -f docker-compose.dev.yml exec -w /srv/app/src_extensions/ckanext-spatialdata ckan-dev sh -c '
+  export CKAN_SQLALCHEMY_URL="${CKAN_SQLALCHEMY_URL%/*}/ckan_test"
+  ckan -c test.ini db init     # once, or after CKAN upgrades
+  pytest --ckan-ini=test.ini ckanext/spatialdata/tests'
+```
+
+Elsewhere, point `use = config:...` in `test.ini` at your CKAN checkout's `test-core.ini` and
+set `sqlalchemy.url` (or `CKAN_SQLALCHEMY_URL`) to a test database.
 
 ## Acknowledgements
 
