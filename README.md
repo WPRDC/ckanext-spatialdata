@@ -70,7 +70,7 @@ _required_.
 |--------------------------------------|----------------------------------------|--------------------|
 | `spatialdata.postgis.field`          | WGS data field in the PostGIS database | \_geom             |
 | `spatialdata.postgis.mercator_field` | Mercator field in the PostGIS database | _geom\_webmercator |
-| `spatialdata.tileserver_url`          | Public base URL of the Martin tile server, used for TileJSON links in the dataset page's "Spatially enabled" modal. Empty hides the links. | _(empty)_ |
+| `spatialdata.tileserver_url`          | Public base URL of the tile server, used by the Map view and the TileJSON links in the dataset page's "Mappable" modal. Empty turns both off. See [Tile server](#tile-server). | _(empty)_ |
 | `spatialdata.tile_source_id_format`   | Tile source id pattern; must match `source_id_format` for the datastore connection in Martin's config. Placeholders: `{table}`, `{column}`, `{schema}`. | table.{table}.{column} |
 | `spatialdata.basemap_style_url`       | MapLibre style JSON used as the basemap in the Map view. | https://tiles.openfreemap.org/styles/positron |
 | `spatialdata.tile_minzoom`            | Lowest zoom the tile server serves for datastore tables. Below it the Map view asks the user to zoom in. | 0 |
@@ -92,6 +92,49 @@ To use this extension, your PostgreSQL database must have [PostGIS](http://postg
     ckan spatialdata create-columns $RESOURCE_ID -c $CONFIG_FILE
     ```
 
+### Tile server
+
+The Map view and the vector-tile links in the dataset page's "Mappable" modal need a tile
+server that publishes the datastore's PostGIS tables. The extension is built around
+[Martin](https://maplibre.org/martin/), but any server that serves TileJSON per table will do.
+
+1. Run Martin against the **datastore** database (not the CKAN database), auto-publishing its
+   tables, with a source id format that includes the table and geometry column. A minimal
+   `config.yaml`:
+
+    ```yaml
+    cors: true            # or add CORS headers in a proxy in front of Martin; not both
+    postgres:
+      - connection_string: postgresql://<read-only user>:<password>@<host>/datastore
+        default_srid: 4326
+        auto_publish:
+          from_schemas: [public]
+          tables:
+            source_id_format: 'table.{table}.{column}'
+    ```
+
+   Each georeferenced resource is then served at `<martin url>/table.<resource id>._geom`
+   (TileJSON), with tiles under `.../{z}/{x}/{y}`. Martin discovers tables when it starts,
+   so if a newly georeferenced resource's TileJSON returns 404, restart Martin.
+
+2. Point CKAN at it:
+
+    ```ini
+    spatialdata.tileserver_url = https://tiles.example.org
+    # only if you changed source_id_format above
+    spatialdata.tile_source_id_format = table.{table}.{column}
+    # if Martin's minzoom is set, so the map can ask users to zoom in below it
+    spatialdata.tile_minzoom = 9
+    ```
+
+3. Make sure browsers can reach it. The map loads TileJSON and tiles straight from
+   `spatialdata.tileserver_url`, so it must be a public URL, and responses must carry
+   `Access-Control-Allow-Origin` for the CKAN site. Enable CORS in Martin **or** in the proxy
+   in front of it; if both add the header, browsers reject the tiles.
+
+To check it, open the TileJSON URL from a georeferenced resource's entry in the "Mappable"
+modal; it should return JSON with a `tiles` array.
+
 ## Map view
 
 The plugin provides a `spatialdata_view` resource view ("Map") that draws a georeferenced
@@ -105,7 +148,7 @@ its attributes.
   georeferenced before this existed, add it from the resource's "Views" tab, or run
   `ckan views create spatialdata_view`.
 - The browser loads tiles straight from the tile server, so the tile server must send CORS
-  headers that allow the CKAN site's origin.
+  headers that allow the CKAN site's origin. See [Tile server](#tile-server).
 
 ### Map style
 
