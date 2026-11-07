@@ -1,4 +1,4 @@
-[![CKAN](https://img.shields.io/badge/ckan-2.10.1-orange.svg?style=flat-square)](https://github.com/ckan/ckan)
+[![CKAN](https://img.shields.io/badge/ckan-2.12-orange.svg?style=flat-square)](https://github.com/ckan/ckan)
 
 # ckanext-spatialdata
 
