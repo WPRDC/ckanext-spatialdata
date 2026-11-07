@@ -1,4 +1,4 @@
-[![CKAN](https://img.shields.io/badge/ckan-2.10.1-orange.svg?style=flat-square)](https://github.com/ckan/ckan)
+[![CKAN](https://img.shields.io/badge/ckan-2.12-orange.svg?style=flat-square)](https://github.com/ckan/ckan)
 
 # ckanext-spatialdata
 
@@ -20,7 +20,6 @@ This extension provides geospatial awareness of datastore data. This includes:
 - Pushing GeoJSON data (properties and geometries) in to the datastore;
 - Support for [PostGIS](http://postgis.net);
 - Support for tile servers that injest PostGIS data. (e.g. [martin](https://github.com/maplibre/martin)).
-- _todo: Spatial extent of datastore searches_
 
 ## Installation
 
@@ -71,7 +70,7 @@ _required_.
 |--------------------------------------|----------------------------------------|--------------------|
 | `spatialdata.postgis.field`          | WGS data field in the PostGIS database | \_geom             |
 | `spatialdata.postgis.mercator_field` | Mercator field in the PostGIS database | _geom\_webmercator |
-| `spatialdata.tileserver_url`          | Public base URL of the Martin tile server, used for TileJSON links in the dataset page's "Spatially enabled" modal. Empty hides the links. | _(empty)_ |
+| `spatialdata.tileserver_url`          | Public base URL of the tile server, used by the Map view and the TileJSON links in the dataset page's "Mappable" modal. Empty turns both off. See [Tile server](#tile-server). | _(empty)_ |
 | `spatialdata.tile_source_id_format`   | Tile source id pattern; must match `source_id_format` for the datastore connection in Martin's config. Placeholders: `{table}`, `{column}`, `{schema}`. | table.{table}.{column} |
 | `spatialdata.basemap_style_url`       | MapLibre style JSON used as the basemap in the Map view. | https://tiles.openfreemap.org/styles/positron |
 | `spatialdata.tile_minzoom`            | Lowest zoom the tile server serves for datastore tables. Below it the Map view asks the user to zoom in. | 0 |
@@ -93,12 +92,55 @@ To use this extension, your PostgreSQL database must have [PostGIS](http://postg
     ckan spatialdata create-columns $RESOURCE_ID -c $CONFIG_FILE
     ```
 
+### Tile server
+
+The Map view and the vector-tile links in the dataset page's "Mappable" modal need a tile
+server that publishes the datastore's PostGIS tables. The extension is built around
+[Martin](https://maplibre.org/martin/), but any server that serves TileJSON per table will do.
+
+1. Run Martin against the **datastore** database (not the CKAN database), auto-publishing its
+   tables, with a source id format that includes the table and geometry column. A minimal
+   `config.yaml`:
+
+    ```yaml
+    cors: true            # or add CORS headers in a proxy in front of Martin; not both
+    postgres:
+      - connection_string: postgresql://<read-only user>:<password>@<host>/datastore
+        default_srid: 4326
+        auto_publish:
+          from_schemas: [public]
+          tables:
+            source_id_format: 'table.{table}.{column}'
+    ```
+
+   Each georeferenced resource is then served at `<martin url>/table.<resource id>._geom`
+   (TileJSON), with tiles under `.../{z}/{x}/{y}`. Martin discovers tables when it starts,
+   so if a newly georeferenced resource's TileJSON returns 404, restart Martin.
+
+2. Point CKAN at it:
+
+    ```ini
+    spatialdata.tileserver_url = https://tiles.example.org
+    # only if you changed source_id_format above
+    spatialdata.tile_source_id_format = table.{table}.{column}
+    # if Martin's minzoom is set, so the map can ask users to zoom in below it
+    spatialdata.tile_minzoom = 9
+    ```
+
+3. Make sure browsers can reach it. The map loads TileJSON and tiles straight from
+   `spatialdata.tileserver_url`, so it must be a public URL, and responses must carry
+   `Access-Control-Allow-Origin` for the CKAN site. Enable CORS in Martin **or** in the proxy
+   in front of it; if both add the header, browsers reject the tiles.
+
+To check it, open the TileJSON URL from a georeferenced resource's entry in the "Mappable"
+modal; it should return JSON with a `tiles` array.
+
 ## Map view
 
 The plugin provides a `spatialdata_view` resource view ("Map") that draws a georeferenced
-resource with [MapLibre GL JS](https://maplibre.org/) (vendored in `assets/vendor/maplibre-gl`),
-using the resource's vector tiles from the tile server. Points, lines and polygons are all
-drawn, and clicking a feature shows its attributes.
+resource with [MapLibre GL JS](https://maplibre.org/), using the resource's vector tiles
+from the tile server. Points, lines and polygons are all drawn, and clicking a feature shows
+its attributes.
 
 - It is offered for resources with `spatialdata_active` set, and only when
   `spatialdata.tileserver_url` is configured.
@@ -106,7 +148,59 @@ drawn, and clicking a feature shows its attributes.
   georeferenced before this existed, add it from the resource's "Views" tab, or run
   `ckan views create spatialdata_view`.
 - The browser loads tiles straight from the tile server, so the tile server must send CORS
-  headers that allow the CKAN site's origin.
+  headers that allow the CKAN site's origin. See [Tile server](#tile-server).
+
+### Map style
+
+Each Map view has a **Map style** setting: a JSON list of
+[MapLibre layers](https://maplibre.org/maplibre-style-spec/layers/) drawn from the resource,
+bottom to top. Leave out `id`, `source` and `source-layer`; the view fills them in, so a style
+can only draw the view's own resource. Layer types: `fill`, `line`, `circle`, `symbol`,
+`heatmap` and `fill-extrusion`. When no style is set, the default in `lib/map_style.py` is
+used: one fill, line and circle layer, so any geometry type renders.
+
+Style by a column with expressions such as `["get", "column"]`. For example, to color
+polygons by a `ZONE` column and outline them:
+
+```json
+[
+  {
+    "type": "fill",
+    "paint": {
+      "fill-color": ["match", ["get", "ZONE"], "R1", "#4c9f70", "C1", "#e4572e", "#888888"],
+      "fill-opacity": 0.5
+    }
+  },
+  {"type": "line", "paint": {"line-color": "#222222", "line-width": 1}}
+]
+```
+
+The style is edited on the view's settings page in a code editor with JSON highlighting.
+It is checked as you type with MapLibre's style validator: problems are listed by layer,
+and the view can't be saved until they are fixed. Preview shows the result on the map
+before saving. "Reset to default" puts back the default style.
+
+A style can also be set through the API, as a JSON string in the view's `style` field:
+
+```shell
+curl -X POST https://data.wprdc.org/api/3/action/resource_view_patch \
+   -H 'Content-Type: application/json' \
+   -H 'Authorization: <API_TOKEN>' \
+   -d '{"id": "<VIEW_ID>", "style": "[{\"type\": \"circle\", \"paint\": {\"circle-color\": \"#e4572e\"}}]"}'
+```
+
+The server checks the JSON, the list shape and the layer types, but not paint or layout
+values; those are only checked in the editor. A style set through the API with a bad value
+still saves, and the map shows the problem as a style error. Setting a style identical to
+the default clears it, so the view keeps following the default.
+
+### Vendored libraries
+
+| Library | Version | Path | Used by |
+|---------|---------|------|---------|
+| [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) (BSD-3-Clause) | 5.6.0 | `assets/vendor/maplibre-gl` | the map |
+| [CodeMirror](https://codemirror.net/5/) (MIT) | 5.65.18 | `assets/vendor/codemirror` | the style editor |
+| [maplibre-gl-style-spec](https://github.com/maplibre/maplibre-style-spec) (BSD-3-Clause) | 23.3.0 | `assets/vendor/maplibre-gl-style-spec` | style validation in the editor; keep it on the version MapLibre GL JS depends on |
 
 ## Usage
 
@@ -251,7 +345,23 @@ search = toolkit.get_action(u'datastore_search')(context, search_params)
 
 ## Testing
 
-_tests coming soon_
+The tests in `ckanext/spatialdata/tests` are unit tests: they cover the map view and its
+style handling, the template helpers, geometry validation and the validators, and need no
+datastore, Solr or Redis. CKAN still needs an initialised (empty) database to start, so use a
+dedicated test database, never one with real data. `conftest.py` blocks CKAN's
+database-resetting fixtures (`clean_db`, `reset_db` and others) as a further guard.
+
+In the ckan-docker dev container (`ckan_test` is created by the Postgres init scripts):
+
+```bash
+docker compose -f docker-compose.dev.yml exec -w /srv/app/src_extensions/ckanext-spatialdata ckan-dev sh -c '
+  export CKAN_SQLALCHEMY_URL="${CKAN_SQLALCHEMY_URL%/*}/ckan_test"
+  ckan -c test.ini db init     # once, or after CKAN upgrades
+  pytest --ckan-ini=test.ini ckanext/spatialdata/tests'
+```
+
+Elsewhere, point `use = config:...` in `test.ini` at your CKAN checkout's `test-core.ini` and
+set `sqlalchemy.url` (or `CKAN_SQLALCHEMY_URL`) to a test database.
 
 ## Acknowledgements
 
