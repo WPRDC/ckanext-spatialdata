@@ -36,3 +36,38 @@ map-css:
       - spatialdata/maplibre-css
   contents:
     - spatialdata-map.css
+
+# CodeMirror 5 for the map view's style editor (view settings form).
+codemirror-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_codemirror.js
+  contents:
+    - vendor/codemirror/codemirror.js
+    - vendor/codemirror/javascript.js
+    - vendor/codemirror/matchbrackets.js
+    - vendor/codemirror/closebrackets.js
+
+# MapLibre's style validator (validateStyleMin), for checking styles in the
+# editor. Version matches the one maplibre-gl 5.6.0 depends on.
+style-spec-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_maplibre-gl-style-spec.js
+  contents:
+    - vendor/maplibre-gl-style-spec/maplibre-gl-style-spec.js
+
+style-editor-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_spatialdata-style-editor.js
+  extra:
+    preload:
+      - base/main
+      - spatialdata/codemirror-js
+      - spatialdata/style-spec-js
+  contents:
+    - spatialdata-style-editor.js
+
+style-editor-css:
+  output: spatialdata/%(version)s_spatialdata-style-editor.css
+  contents:
+    - vendor/codemirror/codemirror.css
+    - spatialdata-style-editor.css

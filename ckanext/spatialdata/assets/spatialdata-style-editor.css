@@ -1,0 +1,20 @@
+.spatialdata-style-editor .CodeMirror {
+  height: auto;
+  min-height: 240px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+
+.spatialdata-style-editor .CodeMirror-scroll {
+  min-height: 240px;
+  max-height: 600px;
+}
+
+.spatialdata-style-editor.error .CodeMirror {
+  border-color: #dc3545;
+}
+
+.spatialdata-style-problems:empty {
+  display: none;
+}

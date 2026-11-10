@@ -1,0 +1,45 @@
+{#
+  Settings for the map view (spatialdata_view): the MapLibre layers drawn
+  from the resource's tiles, edited as JSON. See lib/map_style.py.
+
+  data   - the view's form data
+  errors - validation errors
+#}
+{% asset 'spatialdata/style-editor-css' %}
+{% asset 'spatialdata/style-editor-js' %}
+
+{% set default_style = h.spatialdata_default_map_style() %}
+{% set style_errors = errors.style if errors else [] %}
+
+<div class="form-group control-full spatialdata-style-editor{% if style_errors %} error{% endif %}"
+     data-module="spatialdata-style-editor">
+  <label class="form-label" for="field-style">{{ _('Map style') }}</label>
+  <div class="controls">
+    <textarea id="field-style" name="style" class="form-control font-monospace" rows="20"
+              spellcheck="false">{{ data.style or default_style }}</textarea>
+    {# the default as text for "Reset to default"; no name, so not submitted #}
+    <textarea hidden data-style-default>{{ default_style }}</textarea>
+    {% for error in style_errors %}
+      <span class="error-block">{{ error }}</span>
+    {% endfor %}
+    <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
+      <small data-style-status role="status" aria-live="polite"></small>
+      <button type="button" class="btn btn-sm btn-secondary" data-style-reset>
+        <i class="fa fa-rotate-left" aria-hidden="true"></i> {{ _('Reset to default') }}
+      </button>
+    </div>
+    <ul class="spatialdata-style-problems text-danger small mt-2 mb-0" data-style-problems></ul>
+    <div class="info-block mt-2">
+      <i class="fa fa-info-circle"></i>
+      {% trans %}
+        A list of
+        <a href="https://maplibre.org/maplibre-style-spec/layers/" target="_blank" rel="noopener">MapLibre layers</a>
+        drawn from this resource, bottom to top. Leave out <code>id</code>, <code>source</code>
+        and <code>source-layer</code>; they are filled in. Layer types: fill, line, circle,
+        symbol, heatmap and fill-extrusion. Use <code>["get", "column"]</code> in expressions
+        to style by a column. The style is checked as you type, and can't be saved while it
+        has problems. Click Preview to see the result before saving.
+      {% endtrans %}
+    </div>
+  </div>
+</div>

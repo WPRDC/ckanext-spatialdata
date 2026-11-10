@@ -6,10 +6,12 @@
  *        data-module-source-layer="table.<id>._geom"
  *        data-module-basemap="https://tiles.openfreemap.org/styles/positron"
  *        data-module-bounds="[xmin, ymin, xmax, ymax]"
- *        data-module-minzoom="9"></div>
+ *        data-module-minzoom="9"
+ *        data-module-layers="[{&quot;type&quot;: &quot;fill&quot;, ...}]"
+ *        data-module-style-error=""></div>
  *
- * Polygons, lines and points get their own layer, so any geometry type
- * (including mixed collections) renders. Clicking a feature shows its
+ * `layers` are MapLibre layers without id/source/source-layer (see
+ * lib/map_style.py); this module fills those in. Clicking a feature shows its
  * attributes in a popup.
  */
 ckan.module("spatialdata-map", function ($) {
@@ -18,13 +20,7 @@ ckan.module("spatialdata-map", function ($) {
   var HIDDEN_PROPERTIES = ["_full_text", "spatialdata_wkb"];
 
   var SOURCE_ID = "spatialdata";
-  var FILL_LAYER = "spatialdata-fill";
-  var LINE_LAYER = "spatialdata-line";
-  var POINT_LAYER = "spatialdata-point";
-
-  function geometryTypeIs(types) {
-    return ["match", ["geometry-type"], types, true, false];
-  }
+  var LAYER_PREFIX = "spatialdata-layer-";
 
   return {
     options: {
@@ -33,7 +29,8 @@ ckan.module("spatialdata-map", function ($) {
       basemap: null,
       bounds: null,
       minzoom: 0,
-      color: "#1f6feb",
+      layers: [],
+      styleError: "",
     },
 
     initialize: function () {
@@ -70,6 +67,10 @@ ckan.module("spatialdata-map", function ($) {
       this.map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
       this.zoomHint = this.el.find(".spatialdata-map-zoom-hint");
+      this.layerIds = [];
+      if (this.options.styleError) {
+        this._showStyleError(this.options.styleError);
+      }
       this.map.on("load", this._onLoad);
       this.map.on("zoomend", this._onZoom);
       this.map.on("error", this._onError);
@@ -83,8 +84,8 @@ ckan.module("spatialdata-map", function ($) {
 
     _onLoad: function () {
       var map = this.map;
-      var color = this.options.color;
       var sourceLayer = this.options.sourceLayer;
+      var layerIds = this.layerIds;
 
       map.addSource(SOURCE_ID, {
         type: "vector",
@@ -92,48 +93,26 @@ ckan.module("spatialdata-map", function ($) {
         minzoom: Number(this.options.minzoom) || 0,
       });
 
-      map.addLayer({
-        id: FILL_LAYER,
-        type: "fill",
-        source: SOURCE_ID,
-        "source-layer": sourceLayer,
-        filter: geometryTypeIs(["Polygon", "MultiPolygon"]),
-        paint: { "fill-color": color, "fill-opacity": 0.3 },
-      });
-      map.addLayer({
-        id: LINE_LAYER,
-        type: "line",
-        source: SOURCE_ID,
-        "source-layer": sourceLayer,
-        filter: geometryTypeIs([
-          "LineString", "MultiLineString", "Polygon", "MultiPolygon",
-        ]),
-        paint: {
-          "line-color": color,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 16, 2.5],
-        },
-      });
-      map.addLayer({
-        id: POINT_LAYER,
-        type: "circle",
-        source: SOURCE_ID,
-        "source-layer": sourceLayer,
-        filter: geometryTypeIs(["Point", "MultiPoint"]),
-        paint: {
-          "circle-color": color,
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 6],
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 1,
-        },
+      (this.options.layers || []).forEach(function (layer, i) {
+        var id = LAYER_PREFIX + i;
+        // Invalid paint/layout values are reported through the map's
+        // "error" event (see _onError), not thrown.
+        map.addLayer($.extend({}, layer, {
+          id: id,
+          source: SOURCE_ID,
+          "source-layer": sourceLayer,
+        }));
+        if (map.getLayer(id)) {
+          layerIds.push(id);
+        }
       });
 
-      var layers = [POINT_LAYER, LINE_LAYER, FILL_LAYER];
       map.on("click", this._onClick);
-      layers.forEach(function (layer) {
-        map.on("mouseenter", layer, function () {
+      layerIds.forEach(function (id) {
+        map.on("mouseenter", id, function () {
           map.getCanvas().style.cursor = "pointer";
         });
-        map.on("mouseleave", layer, function () {
+        map.on("mouseleave", id, function () {
           map.getCanvas().style.cursor = "";
         });
       });
@@ -142,9 +121,12 @@ ckan.module("spatialdata-map", function ($) {
     },
 
     _onClick: function (e) {
-      // Query all three layers at once so points sitting on a polygon win.
+      if (!this.layerIds.length) {
+        return;
+      }
+      // Features come back topmost first.
       var features = this.map.queryRenderedFeatures(e.point, {
-        layers: [POINT_LAYER, LINE_LAYER, FILL_LAYER],
+        layers: this.layerIds,
       });
       if (!features.length) {
         return;
@@ -190,11 +172,28 @@ ckan.module("spatialdata-map", function ($) {
     },
 
     _onError: function (e) {
-      // Tile or TileJSON failures (e.g. tile server down, CORS) are logged
-      // rather than shown, since one bad tile shouldn't blank the map.
-      if (window.console) {
-        console.warn("spatialdata-map:", e && e.error ? e.error : e);
+      var error = e && e.error ? e.error : e;
+      // Style problems in the view's layers are shown, so whoever wrote the
+      // style can see them in the preview. Tile or TileJSON failures (e.g.
+      // tile server down, CORS) are only logged, since one bad tile
+      // shouldn't cover the map.
+      var message = error && error.message ? error.message : String(error);
+      if (message.indexOf(LAYER_PREFIX) !== -1) {
+        // number layers from 1, like the server-side validation messages
+        var layerLabel = this._("layer");
+        this._showStyleError(message.replace(/(?:layers\.)?spatialdata-layer-(\d+)/g, function (m, n) {
+          return layerLabel + " " + (Number(n) + 1);
+        }));
       }
+      if (window.console) {
+        console.warn("spatialdata-map:", error);
+      }
+    },
+
+    _showStyleError: function (message) {
+      var el = this.el.find(".spatialdata-map-message");
+      var text = this._("Style error: ") + message;
+      el.text(el.text() ? el.text() + "\n" + text : text).removeClass("d-none");
     },
 
     _showMessage: function (message) {
