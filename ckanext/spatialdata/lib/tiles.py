@@ -107,11 +107,16 @@ def tile_fields(view: dict, layers: Iterable[dict] = ()) -> list[str]:
 
 
 def tile_url_template(
-    resource_id: str, fields: list[str], version: Optional[str] = None
+    resource_id: str,
+    fields: list[str],
+    version: Optional[str] = None,
+    filters: Optional[str] = None,
 ) -> Optional[str]:
     """MapLibre tile URL for the map view, or None without a tile server.
 
     The ``{z}/{x}/{y}`` placeholders are left for MapLibre to fill in.
+
+    :param filters: the view's filters as JSON (lib/filters.py).
 
     :param version: changes when the geometries do (e.g. the resource's
         ``spatialdata_last_geom_updated``), so tiles cached by Martin or
@@ -125,6 +130,8 @@ def tile_url_template(
     query = {"resource": resource_id}
     if fields:
         query["fields"] = FIELD_LIST_SEPARATOR.join(fields)
+    if filters:
+        query["filters"] = filters
     if version:
         query["v"] = version
     return f"{tileserver_url}/{source}/{{z}}/{{x}}/{{y}}?{urlencode(query)}"

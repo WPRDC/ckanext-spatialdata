@@ -9,9 +9,12 @@
  *        data-module-hover-fields="[&quot;b&quot;]"
  *        data-module-basemap="https://tiles.openfreemap.org/styles/positron"
  *        data-module-bounds="[xmin, ymin, xmax, ymax]"
+ *        data-module-center="[lon, lat]"
+ *        data-module-zoom="12"
  *        data-module-minzoom="9"
  *        data-module-layers="[{&quot;type&quot;: &quot;fill&quot;, ...}]"
- *        data-module-style-error=""></div>
+ *        data-module-style-error=""
+ *        data-module-filter-error=""></div>
  *
  * `layers` are MapLibre layers without id/source/source-layer (see
  * lib/map_style.py); this module fills those in.
@@ -20,6 +23,10 @@
  * a feature shows its title field and hover fields from the tile; clicking it
  * fetches the whole row's popup from feature-url (with the 0 replaced by the
  * feature's `_id`), rendered with the view's saved click template.
+ *
+ * The map starts at center/zoom when the view sets them, otherwise fitted to
+ * bounds. It's also left on window.spatialdataMap, so the view form can read
+ * the preview's position (spatialdata-view-position.js).
  */
 ckan.module("spatialdata-map", function ($) {
   var SOURCE_ID = "spatialdata";
@@ -34,9 +41,12 @@ ckan.module("spatialdata-map", function ($) {
       hoverFields: [],
       basemap: null,
       bounds: null,
+      center: null,
+      zoom: null,
       minzoom: 0,
       layers: [],
       styleError: "",
+      filterError: "",
     },
 
     initialize: function () {
@@ -53,12 +63,21 @@ ckan.module("spatialdata-map", function ($) {
         cooperativeGestures: false,
       };
       var bounds = this.options.bounds;
-      if (bounds && bounds.length === 4) {
+      var hasBounds = bounds && bounds.length === 4;
+      var center = this.options.center;
+      var zoom = this.options.zoom === null || this.options.zoom === "" ? null : Number(this.options.zoom);
+      if (center && center.length === 2) {
+        mapOptions.center = center;
+        mapOptions.zoom = zoom === null ? 12 : zoom;
+      } else if (hasBounds && zoom !== null) {
+        mapOptions.center = [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
+        mapOptions.zoom = zoom;
+      } else if (hasBounds) {
         mapOptions.bounds = bounds;
         mapOptions.fitBoundsOptions = { padding: 24, maxZoom: 16 };
       } else {
         mapOptions.center = [0, 0];
-        mapOptions.zoom = 1;
+        mapOptions.zoom = zoom === null ? 1 : zoom;
       }
 
       try {
@@ -68,6 +87,7 @@ ckan.module("spatialdata-map", function ($) {
         return;
       }
 
+      window.spatialdataMap = this.map;
       this.map.addControl(new maplibregl.NavigationControl(), "top-right");
       this.map.addControl(new maplibregl.FullscreenControl(), "top-right");
       this.map.addControl(new maplibregl.ScaleControl(), "bottom-left");
@@ -76,6 +96,9 @@ ckan.module("spatialdata-map", function ($) {
       this.layerIds = [];
       if (this.options.styleError) {
         this._showStyleError(this.options.styleError);
+      }
+      if (this.options.filterError) {
+        this._appendMessage(this._("Filter error: ") + this.options.filterError);
       }
       this.map.on("load", this._onLoad);
       this.map.on("zoomend", this._onZoom);
@@ -275,8 +298,11 @@ ckan.module("spatialdata-map", function ($) {
     },
 
     _showStyleError: function (message) {
+      this._appendMessage(this._("Style error: ") + message);
+    },
+
+    _appendMessage: function (text) {
       var el = this.el.find(".spatialdata-map-message");
-      var text = this._("Style error: ") + message;
       el.text(el.text() ? el.text() + "\n" + text : text).removeClass("d-none");
     },
 

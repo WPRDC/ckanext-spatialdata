@@ -71,3 +71,13 @@ style-editor-css:
   contents:
     - vendor/codemirror/codemirror.css
     - spatialdata-style-editor.css
+
+# Map view settings form: starting position and filter editor.
+view-form-js:
+  filters: rjsmin
+  output: spatialdata/%(version)s_spatialdata-view-form.js
+  extra:
+    preload:
+      - base/main
+  contents:
+    - spatialdata-view-form.js

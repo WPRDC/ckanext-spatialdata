@@ -207,6 +207,46 @@ saved template. Field values are escaped, so data can't add formatting or links,
 rendered Markdown is sanitized like other CKAN Markdown. While editing a view, the preview's
 hover popups follow the unsaved settings, but clicks use the saved template.
 
+### Starting position
+
+By default the map fits the whole table. To start somewhere else, set **Longitude**,
+**Latitude** and **Zoom** under **Starting position** in the view's settings (stored as
+`center_lon`, `center_lat` and `zoom`). The easiest way is to move the preview map and click
+**Use the preview's position**. A zoom without a center zooms in on the middle of the table.
+
+### Filters
+
+A view can draw only some rows, e.g. 311 requests from the past year. Under **Filters** in
+the view's settings, add rows of *field*, *condition* and *value*; every filter must match.
+They're stored on the view as JSON (`filters`):
+
+```json
+[
+  {"field": "created_date_et", "op": "last", "value": "1 year"},
+  {"field": "status", "op": "not in", "value": ["Closed"]}
+]
+```
+
+| `op` | Value |
+|------|-------|
+| `=`, `!=`, `<`, `<=`, `>`, `>=` | one value, compared as the column's type (numbers, dates like `2025-01-31`, text) |
+| `in`, `not in` | a list of values (comma-separated in the form) |
+| `contains` | text, matched case-insensitively |
+| `last` | a date or timestamp column within a number of `minute`s, `hour`s, `day`s, `week`s, `month`s or `year`s of now, e.g. `30 days`; moves with the date |
+| `empty`, `not empty` | none |
+
+At most 10 filters, and 100 values in a list. Filters are checked against the table's
+columns when the view is saved, and the map says which rows it's showing.
+
+The filters go to the tile function in the tile URL (`&filters=<json>`), which builds its
+`WHERE` clause without putting any of their text into SQL: fields must be columns of the
+table and are quoted, operators come from a fixed list, and values are passed as a query
+parameter and cast to the column's type. A filter that breaks these rules makes the tile
+request fail rather than return unfiltered rows.
+
+Filters only narrow what the map draws. Anyone can request tiles without them, and the data
+is available through the datastore API anyway, so they're not a way to hide rows.
+
 ### Map style
 
 Each Map view has a **Map style** setting: a JSON list of

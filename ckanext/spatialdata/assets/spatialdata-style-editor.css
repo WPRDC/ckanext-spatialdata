@@ -18,3 +18,11 @@
 .spatialdata-style-problems:empty {
   display: none;
 }
+
+/* Map view filter editor (spatialdata-view-form.js) */
+.spatialdata-filter-row > select,
+.spatialdata-filter-row > input {
+  width: auto;
+  flex: 1 1 10rem;
+  min-width: 0;
+}

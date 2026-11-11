@@ -1,7 +1,8 @@
 {#
   Settings for the map view (spatialdata_view): the MapLibre layers drawn
-  from the resource's tiles, edited as JSON (see lib/map_style.py), and the
-  hover and click popups (see lib/popup.py).
+  from the resource's tiles, edited as JSON (see lib/map_style.py), the
+  hover and click popups (see lib/popup.py), the starting position, and
+  filters on the rows drawn (see lib/filters.py).
 
   data     - the view's form data
   errors   - validation errors
@@ -9,6 +10,7 @@
 #}
 {% asset 'spatialdata/style-editor-css' %}
 {% asset 'spatialdata/style-editor-js' %}
+{% asset 'spatialdata/view-form-js' %}
 
 {% set default_style = h.spatialdata_default_map_style() %}
 {% set style_errors = errors.style if errors else [] %}
@@ -105,3 +107,46 @@ Status: {{ STATUS }}', value=data.popup_template, error=errors.popup_template) %
     {{ _('Fields:') }} {% for f in ds_fields %}<code>{{ f.id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
   </p>
 {% endif %}
+
+<h3 class="mt-4">{{ _('Starting position') }}</h3>
+<div class="spatialdata-view-position" data-module="spatialdata-view-position">
+  <div class="row">
+    <div class="col-sm-4">
+      {{ form.input('center_lon', label=_('Longitude'), id='field-center_lon', type='number', placeholder='-79.9959', value=data.center_lon, error=errors.center_lon, attrs={'class': 'form-control', 'step': 'any', 'min': '-180', 'max': '180'}) }}
+    </div>
+    <div class="col-sm-4">
+      {{ form.input('center_lat', label=_('Latitude'), id='field-center_lat', type='number', placeholder='40.4406', value=data.center_lat, error=errors.center_lat, attrs={'class': 'form-control', 'step': 'any', 'min': '-85', 'max': '85'}) }}
+    </div>
+    <div class="col-sm-4">
+      {{ form.input('zoom', label=_('Zoom'), id='field-zoom', type='number', placeholder='12', value=data.zoom, error=errors.zoom, attrs={'class': 'form-control', 'step': 'any', 'min': '0', 'max': '22'}) }}
+    </div>
+  </div>
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <button type="button" class="btn btn-sm btn-secondary" data-position-use>
+      <i class="fa fa-crosshairs" aria-hidden="true"></i> {{ _("Use the preview's position") }}
+    </button>
+    <button type="button" class="btn btn-sm btn-link" data-position-clear>{{ _('Clear') }}</button>
+    <small data-position-status role="status" aria-live="polite"></small>
+  </div>
+  {{ form.info(_("Where the map starts. Leave empty to fit the whole table. To pick a spot, move the preview map, then click \"Use the preview's position\". Zoom 10 shows a county, 13 a neighborhood, 16 a block.")) }}
+</div>
+
+{% set filters_errors = errors.filters or [] %}
+<h3 class="mt-4">{{ _('Filters') }}</h3>
+<div class="form-group control-full spatialdata-filter-editor{% if filters_errors %} error{% endif %}"
+     data-module="spatialdata-filter-editor"
+     data-module-fields="{{ ds_fields | tojson | forceescape }}"
+     data-module-operators="{{ h.spatialdata_filter_operators() | tojson | forceescape }}">
+  <label class="form-label" for="field-filters">{{ _('Only draw rows where') }}</label>
+  <div class="controls">
+    <div data-filter-rows></div>
+    <button type="button" class="btn btn-sm btn-secondary d-none" data-filter-add>
+      <i class="fa fa-plus" aria-hidden="true"></i> {{ _('Add filter') }}
+    </button>
+    {# the field; the editor above writes it, and it's shown when there's no JavaScript #}
+    <textarea id="field-filters" name="filters" class="form-control font-monospace mt-2" rows="3"
+              spellcheck="false" placeholder='[{"field": "CREATED_ON", "op": "last", "value": "1 year"}]'>{{ data.filters or '' }}</textarea>
+    {% for error in filters_errors %}<span class="error-block">{{ error }}</span>{% endfor %}
+    {{ form.info(_('All filters must match. Dates are compared as YYYY-MM-DD; "is in the last" takes a number and a unit, like "1 year" or "30 days", and moves with the date. Lists are comma-separated. Filters only narrow what the map shows; the data stays available elsewhere.')) }}
+  </div>
+</div>

@@ -81,3 +81,35 @@ def sysadmin_only(key, data, errors, context) -> None:
         data.pop(key, None)
         raise StopOnError
     data[key] = stored
+
+
+def number_in_range(low: float, high: float):
+    """A validator: a number from ``low`` to ``high``, stored as a float."""
+
+    def validator(value: Any) -> Any:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise Invalid(_("Must be a number."))
+        if not low <= number <= high:
+            raise Invalid(
+                _("Must be from {low} to {high}.").format(low=low, high=high)
+            )
+        return number
+
+    return validator
+
+
+def both_or_neither(other: str, other_label: str):
+    """A validator: when this field is set, ``other`` must be too."""
+
+    def validator(key, data, errors, context) -> None:
+        def is_set(k):
+            value = data.get(k)
+            return value is not None and value is not missing and str(value).strip() != ""
+
+        if is_set(key) and not is_set((other,)):
+            errors[key].append(_("Also set the {other}.").format(other=_(other_label)))
+            raise StopOnError
+
+    return validator

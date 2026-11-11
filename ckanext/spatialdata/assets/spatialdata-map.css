@@ -32,6 +32,28 @@ body.spatialdata-view {
   pointer-events: none;
 }
 
+/* Which rows the view's filters keep; under the zoom hint, clear of the
+   controls on the right. */
+.spatialdata-map-filter-note {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 70px);
+  z-index: 1;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spatialdata-map-filter-note ~ .spatialdata-map-zoom-hint {
+  top: 40px;
+}
+
 .spatialdata-map-popup {
   max-height: 260px;
   overflow-y: auto;
