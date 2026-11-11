@@ -117,5 +117,6 @@ class TestMapViewPage:
         )
         html = self.render(resource, package)
         assert 'data-module="spatialdata-map"' in html
-        assert f"{TILESERVER}/table.{RESOURCE_ID}._geom" in html
+        assert f"{TILESERVER}/public.spatialdata_tiles/{{z}}/{{x}}/{{y}}?resource={RESOURCE_ID}" in html
+        assert f"/resource/{RESOURCE_ID}/spatialdata/feature/0" in html
         assert "maplibre" in html

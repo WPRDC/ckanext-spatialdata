@@ -16,6 +16,7 @@ from ckanext.spatialdata import jobs
 from ckanext.spatialdata.jobs import JOB_TYPE
 from ckanext.spatialdata.lib.postgis import prepare_and_populate_geoms
 from ckanext.spatialdata.lib.types import GeoreferenceStatus, StatusResult
+from ckanext.spatialdata.lib.util import has_geom_link, has_geometry_source
 
 enqueue_job = toolkit.enqueue_job
 get_queue = rq_jobs.get_queue
@@ -156,11 +157,11 @@ def _georeference_skip_reason(resource: dict) -> Optional[str]:
         return None
     if not resource.get("datastore_active"):
         return "Resource is not a GeoJSON file and is not in the datastore."
-    has_lat_lng = resource.get("spatialdata_latitude_field") and resource.get(
-        "spatialdata_longitude_field"
-    )
-    if not has_lat_lng and not resource.get("spatialdata_wkt_field"):
-        return "No latitude/longitude or WKT field configured on the resource."
+    if not has_geometry_source(resource):
+        return (
+            "No latitude/longitude or WKT field, or linked geometry resource, "
+            "configured on the resource."
+        )
     return None
 
 
@@ -168,7 +169,10 @@ def spatialdata_submit_package(context: Context, data_dict: DataDict) -> dict:
     """Submit every eligible resource in a dataset to be georeferenced.
 
     A resource is eligible if it is a GeoJSON file, or if it is in the
-    datastore and has latitude/longitude or WKT fields configured.
+    datastore and has latitude/longitude or WKT fields, or a linked geometry
+    resource, configured. Linked resources are submitted after the others, but
+    their jobs can still run first if there are several workers: georeference
+    geometry resources before the resources linked to them.
 
     :param id: the id or name of the dataset
     :returns: ``package_id``, the ``submitted`` resource ids, and the
@@ -187,7 +191,9 @@ def spatialdata_submit_package(context: Context, data_dict: DataDict) -> dict:
 
     submitted: list[str] = []
     skipped: list[dict] = []
-    for resource in pkg.get("resources", []):
+    # queue linked resources last, so their geometry resources go first
+    resources = sorted(pkg.get("resources", []), key=has_geom_link)
+    for resource in resources:
         reason = _georeference_skip_reason(resource)
         if not reason:
             try:

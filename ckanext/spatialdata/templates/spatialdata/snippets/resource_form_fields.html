@@ -1,0 +1,75 @@
+{#
+  Sysadmin-only spatialdata fields in the resource form. Included by
+  package/snippets/resource_form.html and its scheming counterpart.
+
+  data   - the resource's form data
+  errors - validation errors
+#}
+{% import 'macros/form.html' as form %}
+
+{# the datastore's columns, offered for the field name inputs #}
+{% set ds_fields = h.datastore_dictionary(data.id) if data.id and data.datastore_active else [] %}
+{% if ds_fields %}
+  <datalist id="spatialdata-datastore-fields">
+    {% for f in ds_fields %}<option value="{{ f.id }}"></option>{% endfor %}
+  </datalist>
+{% endif %}
+{% set list_attr = {'class': 'form-control', 'list': 'spatialdata-datastore-fields', 'autocomplete': 'off'} if ds_fields else {'class': 'form-control'} %}
+
+<hr/>
+<h2>{{ _('(Optional) spatialdata metadata') }}</h2>
+{{ form.info(_('These fields are only for sysadmins and are optional.')) }}
+{{ form.info(_('If Latitude & Longitude fields, a WKT field, or a geometry resource and link are provided, the resource can be georeferenced.')) }}
+<br/>
+
+<div class="row row-cols-2">
+    {% call form.input('spatialdata_longitude_field', label=_('Longitude (x) field name'), id='field-spatialdata_longitude_field', placeholder='longitude', value=data.spatialdata_longitude_field, error=errors.spatialdata_longitude_field, attrs=list_attr) %}
+        {{ form.info(_('Required with "Latitude Field" to make datastore resource spatially aware, unless "WKT Field" is provided.') ) }}
+    {% endcall %}
+
+    {% call form.input('spatialdata_latitude_field', label=_('Latitude (y) field name'), id='field-spatialdata_latitude_field', placeholder='latitude', value=data.spatialdata_latitude_field, error=errors.spatialdata_latitude_field, attrs=list_attr) %}
+        {{ form.info(_('Required with "Longitude Field" to make datastore resource spatially aware, unless "WKT Field" is provided.') ) }}
+    {% endcall %}
+</div>
+
+{% call form.input('spatialdata_wkt_field', label=_('WKT field name'), id='field-spatialdata_wkt_field', placeholder='wkt', value=data.spatialdata_wkt_field, error=errors.spatialdata_wkt_field, attrs=list_attr) %}
+    {{ form.info(_('Required to make datastore resource spatially aware, unless "Longitude Field" and "Latitude Field" are provided.') ) }}
+{% endcall %}
+
+{% call form.input('spatialdata_geom_resource', label=_('spatialdata Geometry Resource'), id='field-spatialdata_geom_resource', placeholder='', value=data.spatialdata_geom_resource, error=errors.spatialdata_geom_resource) %}
+    {{ form.info(_('Must be a valid resource ID. ID of the resource that provides geometries for this resource.') ) }}
+{% endcall %}
+
+{% call form.input('spatialdata_geom_link', label=_('Foreign Key Link to spatialdata Resource'), id='field-spatialdata_geom_link', placeholder='PARID->PIN', value=data.spatialdata_geom_link, error=errors.spatialdata_geom_link) %}
+    {{ form.info(_('Used to join this table with its geometry resource, which must already be georeferenced. Must be of form [field_in_this_resource]->[field_in_geom_resource] (e.g. PARID->PIN). Rows sharing a key in the geometry resource have their geometries unioned.') ) }}
+{% endcall %}
+
+{# stored as a list once validated; shown as JSON, not as a Python list #}
+{% set fields_definition = data.spatialdata_fields_definition %}
+{% call form.textarea('spatialdata_fields_definition', label=_('spatialdata Fields Definitions'), id='field-spatialdata_fields_definition', placeholder='[{"id": "columnA", "type": "text"}]', value=(fields_definition if (fields_definition is string or not fields_definition) else h.dump_json(fields_definition)), error=errors.spatialdata_fields_definition) %}
+    {{ form.info(_('Only used with GeoJSON resources. Must be a valid Fields json object. Used to provide field types when loading a GeoJSON into the datastore.') ) }}
+    <a class="info-inline" href="https://docs.ckan.org/en/2.10/maintaining/datastore.html#fields"
+       target="_blank"><i class="fa fa-book"></i> Fields Documentation</a>
+{% endcall %}
+
+<h3 class="mt-4">{{ _('Map view') }}</h3>
+
+{% call form.input('spatialdata_popup_title_field', label=_('Popup title field'), id='field-spatialdata_popup_title_field', placeholder='', value=data.spatialdata_popup_title_field, error=errors.spatialdata_popup_title_field, attrs=list_attr) %}
+    {{ form.info(_('Shown as the heading when hovering over or clicking a feature on the map.') ) }}
+{% endcall %}
+
+{% call form.input('spatialdata_tile_fields', label=_('Hover fields'), id='field-spatialdata_tile_fields', placeholder='STATUS, CREATED_ON', value=data.spatialdata_tile_fields, error=errors.spatialdata_tile_fields) %}
+    {{ form.info(_('Comma-separated fields shown when hovering over a feature on the map. Only these fields (and any the map style uses) are sent to the map, so keep the list short for large tables.') ) }}
+{% endcall %}
+
+{% call form.textarea('spatialdata_popup_template', label=_('Popup template'), id='field-spatialdata_popup_template', placeholder='**{{ REQUEST_TYPE }}**
+
+Status: {{ STATUS }}', value=data.spatialdata_popup_template, error=errors.spatialdata_popup_template) %}
+    {{ form.info(_('Shown when a feature on the map is clicked. Markdown, with {{ field }} for a field\'s value. Leave empty to list every field.') ) }}
+{% endcall %}
+
+{% if ds_fields %}
+  <p class="form-text small">
+    {{ _('Fields:') }} {% for f in ds_fields %}<code>{{ f.id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+{% endif %}

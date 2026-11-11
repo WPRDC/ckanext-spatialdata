@@ -7,23 +7,26 @@
 
 {% block title %}{{ h.dataset_display_name(package) }}&mdash;{{ h.resource_display_name(resource) }} - {{ super() }}{% endblock %}
 
-{% block bodytag %}{{ super() }}{% if tilejson_url %} class="spatialdata-view"{% endif %}{% endblock %}
+{% block bodytag %}{{ super() }}{% if tile_url %} class="spatialdata-view"{% endif %}{% endblock %}
 
 {% block page %}
-  {% if not tilejson_url %}
+  {% if not tile_url %}
     <div class="alert alert-info m-3" role="status">
       {{ _('This map is not available because no tile server is configured.') }}
     </div>
   {% else %}
   <div class="spatialdata-map"
        data-module="spatialdata-map"
-       data-module-tilejson="{{ tilejson_url }}"
+       data-module-tiles="{{ tile_url }}"
        data-module-source-layer="{{ source_layer }}"
+       data-module-feature-url="{{ feature_url }}"
+       data-module-hover-fields="{{ hover_fields | tojson | forceescape }}"
        data-module-basemap="{{ basemap_style_url }}"
        data-module-bounds="{{ bounds | tojson | forceescape }}"
        data-module-minzoom="{{ tile_minzoom }}"
        data-module-layers="{{ layers | tojson | forceescape }}"
        {# only when set: CKAN reads an empty data-module-* attribute as true #}
+       {% if title_field %}data-module-title-field="{{ title_field }}"{% endif %}
        {% if style_error %}data-module-style-error="{{ style_error }}"{% endif %}>
     <div class="spatialdata-map-canvas" role="region" aria-label="{{ _('Map of') }} {{ h.resource_display_name(resource) }}"></div>
     <div class="spatialdata-map-zoom-hint d-none" role="status">{{ _('Zoom in to see the data') }}</div>
@@ -34,7 +37,7 @@
 
 {% block styles %}
   {{ super() }}
-  {% if tilejson_url %}
+  {% if tile_url %}
     {% asset 'spatialdata/map-css' %}
     {% asset 'spatialdata/map-js' %}
   {% endif %}

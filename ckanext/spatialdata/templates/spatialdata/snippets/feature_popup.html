@@ -1,0 +1,22 @@
+{#
+  Popup for a clicked map feature, fetched by the map view (spatialdata-map.js)
+  from the spatialdata.feature_popup route. See lib/popup.py.
+
+  title - value of the resource's popup title field, if set
+  body  - the resource's popup template, rendered (sanitized HTML), if set
+  rows  - (field, value) pairs, listed when there's no template
+#}
+<div class="spatialdata-map-popup">
+  {% if title %}<h3 class="spatialdata-map-popup-title">{{ title }}</h3>{% endif %}
+  {% if body %}
+    <div class="spatialdata-map-popup-body">{{ body }}</div>
+  {% elif rows %}
+    <table class="table table-sm mb-0">
+      {% for name, value in rows %}
+        <tr><th scope="row">{{ name }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  {% elif not title %}
+    <p class="mb-0">{{ _('No attributes') }}</p>
+  {% endif %}
+</div>

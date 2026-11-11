@@ -15,6 +15,7 @@ from ckanext.spatialdata.lib.db import (
     create_index,
     fields_exist,
     get_connection,
+    get_geom_column_type,
     Connection,
     index_exists,
     invoke_search_plugins,
@@ -25,7 +26,13 @@ from ckanext.spatialdata.lib.types import (
     SpecificStatusCallback,
     GeoreferenceStatus,
 )
-from ckanext.spatialdata.lib.util import get_common_geom_type, site_context
+from ckanext.spatialdata.lib.util import (
+    get_common_geom_type,
+    has_geom_link,
+    parse_geom_link,
+    site_context,
+)
+from ckanext.datastore.backend.postgres import identifier
 
 logger = logging.getLogger(__name__)
 
@@ -317,13 +324,62 @@ def prepare_and_populate_geoms(
     from_geojson_add: bool = False,
     status_callback: StatusCallback = lambda status, value, error: None,
     source_srid: int = 4326,
-) -> None:
+) -> Optional[str]:
     """Adds geometric data fields, geometric indexes and then populates the geometric fields based
     on extant data and spatialdata metadata.
 
     :param resource: CKAN Resource dict
     :param from_geojson_add: True if going from creation of new geojson file.
+    :returns: notes on the result for the job status, if any
     """
+    notes = None
+    if (
+        not from_geojson_add
+        and not _has_own_geom_fields(resource)
+        and has_geom_link(resource)
+    ):
+        notes = prepare_and_populate_linked_geoms(
+            resource, status_callback=status_callback
+        )
+    else:
+        _prepare_and_populate_own_geoms(
+            resource,
+            from_geojson_add=from_geojson_add,
+            status_callback=status_callback,
+            source_srid=source_srid,
+        )
+
+    # update metadata
+    toolkit.get_action("resource_patch")(
+        site_context(),
+        {
+            "id": resource["id"],
+            "spatialdata_last_geom_updated": datetime.datetime.now().isoformat(),
+            "spatialdata_active": True,
+            "spatialdata_status": "active",
+        },
+    )
+    logger.info(f"Geometry columns for {resource['id']} populated.")
+    return notes
+
+
+def _has_own_geom_fields(resource: dict) -> bool:
+    return bool(
+        (
+            resource.get("spatialdata_latitude_field")
+            and resource.get("spatialdata_longitude_field")
+        )
+        or resource.get("spatialdata_wkt_field")
+    )
+
+
+def _prepare_and_populate_own_geoms(
+    resource: dict,
+    from_geojson_add: bool = False,
+    status_callback: StatusCallback = lambda status, value, error: None,
+    source_srid: int = 4326,
+) -> None:
+    """Populate the geom columns from the resource's own lat/lng, WKT or WKB."""
     lat_field = resource.get("spatialdata_latitude_field")
     lng_field = resource.get("spatialdata_longitude_field")
     wkt_field = resource.get("spatialdata_wkt_field")
@@ -362,17 +418,225 @@ def prepare_and_populate_geoms(
     logger.debug(populate_args)
     populate_postgis_columns(**populate_args)
 
-    # update metadata
-    toolkit.get_action("resource_patch")(
-        site_context(),
-        {
-            "id": resource["id"],
-            "spatialdata_last_geom_updated": datetime.datetime.now().isoformat(),
-            "spatialdata_active": True,
-            "spatialdata_status": "active",
-        },
+
+# Session-local table holding one geometry per link key; see
+# prepare_and_populate_linked_geoms.
+LINKED_GEOMS_TABLE = "spatialdata_linked_geoms"
+
+
+def linked_geom_type(source_type: Optional[str], has_merged: bool) -> tuple[str, str]:
+    """Geometry column type for linked geometries, and the SQL that fits a
+    geometry to it.
+
+    Unioning several geometries can turn e.g. polygons into a multipolygon,
+    so when any keys were merged, single types are promoted to their multi
+    type. Multi types are forced too, since a union of multipolygons that
+    touch can come back as a single polygon.
+
+    :param source_type: declared type of the geometry resource's geom column
+    :param has_merged: True if any key had several geometries unioned
+    :returns: ``(column type, SQL template with a {} for the geometry)``
+    """
+    source_type = (source_type or "GEOMETRY").upper()
+    if source_type == "GEOMETRYCOLLECTION":
+        return source_type, "ST_ForceCollection({})"
+    if has_merged and source_type in ("POINT", "LINESTRING", "POLYGON"):
+        source_type = "MULTI" + source_type
+    if source_type.startswith("MULTI"):
+        return source_type, "ST_Multi({})"
+    return source_type, "{}"
+
+
+def _link_key(table_alias: str, field: str) -> str:
+    """SQL for a link key: compared as trimmed text, so a numeric id in one
+    table still matches a text id in the other."""
+    return f"btrim({table_alias}.{identifier(field)}::text)"
+
+
+def linked_geoms_sql(geom_resource_id: str, geom_field: str) -> str:
+    """SQL creating LINKED_GEOMS_TABLE: one geometry per key of the geometry
+    resource, unioning the geometries of keys that appear more than once.
+
+    Single geometries are copied as they are rather than run through
+    ST_Union, which would be slow across a whole table and can reorder
+    vertices.
+    """
+    key = _link_key("g", geom_field)
+    table = identifier(geom_resource_id)
+    geom = identifier(GEOM_FIELD)
+    return f"""
+        CREATE TEMP TABLE {LINKED_GEOMS_TABLE} AS
+        WITH keyed AS (
+            SELECT {key} AS key, g.{geom} AS geom
+            FROM {table} g
+            WHERE g.{geom} IS NOT NULL
+              AND {key} <> ''
+        ),
+        counted AS (
+            SELECT key, count(*) AS n FROM keyed GROUP BY key
+        )
+        SELECT k.key, k.geom, false AS merged
+        FROM keyed k JOIN counted c USING (key)
+        WHERE c.n = 1
+        UNION ALL
+        SELECT k.key, ST_Union(k.geom), true
+        FROM keyed k JOIN counted c USING (key)
+        WHERE c.n > 1
+        GROUP BY k.key
+    """
+
+
+def linked_update_sql(resource_id: str, local_field: str, fit_geom: str) -> str:
+    """SQL setting the geom columns of rows ``_id > %s AND _id <= %s`` from
+    LINKED_GEOMS_TABLE.
+
+    Every row in the range is written, so rows whose key no longer matches
+    (or is empty) get NULL geometries instead of keeping stale ones.
+
+    :param fit_geom: SQL template from linked_geom_type
+    """
+    table = identifier(resource_id)
+    geom = fit_geom.format("l.geom")
+    return f"""
+        UPDATE {table} AS t
+        SET {identifier(GEOM_FIELD)} = {geom},
+            {identifier(GEOM_MERCATOR_FIELD)} = ST_Transform({geom}, 3857)
+        FROM {table} AS src
+        LEFT JOIN {LINKED_GEOMS_TABLE} l ON l.key = {_link_key("src", local_field)}
+        WHERE t._id = src._id
+          AND src._id > %s AND src._id <= %s
+    """
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n:,} {noun}{'' if n == 1 else 's'}"
+
+
+def _check_geom_link(resource: dict, local_field: str, geom_field: str) -> dict:
+    """Check a linked resource can be georeferenced; return the geometry
+    resource. Raises ValueError with a message for the job status if not."""
+    geom_resource_id = resource["spatialdata_geom_resource"]
+    if geom_resource_id == resource["id"]:
+        raise ValueError("A resource can't take its geometries from itself.")
+    try:
+        geom_resource = toolkit.get_action("resource_show")(
+            site_context(), {"id": geom_resource_id}
+        )
+    except toolkit.ObjectNotFound:
+        raise ValueError(f"Geometry resource {geom_resource_id} does not exist.")
+    if not geom_resource.get("datastore_active"):
+        raise ValueError(
+            f"Geometry resource {geom_resource_id} is not in the datastore."
+        )
+    if not has_postgis_columns(geom_resource["id"]):
+        raise ValueError(
+            f"Geometry resource {geom_resource_id} has not been georeferenced. "
+            "Georeference it before this resource."
+        )
+    with get_connection() as c:
+        if not fields_exist(c, resource["id"], [local_field]):
+            raise ValueError(f'Field "{local_field}" is not in this resource.')
+        if not fields_exist(c, geom_resource["id"], [geom_field]):
+            raise ValueError(
+                f'Field "{geom_field}" is not in geometry resource {geom_resource_id}.'
+            )
+    return geom_resource
+
+
+def prepare_and_populate_linked_geoms(
+    resource: dict,
+    status_callback: StatusCallback = lambda status, value, error: None,
+) -> str:
+    """Populate a resource's geom columns from another, georeferenced
+    resource, joining rows on ``spatialdata_geom_link``
+    (``field_in_this_resource->field_in_geom_resource``).
+
+    The geometries are copied, so the tile server and the rest of the
+    extension treat the resource like any other. Rerun after the geometry
+    resource changes to pick its changes up.
+
+    :returns: notes for the job status, with how many rows matched
+    """
+    resource_id = resource["id"]
+    local_field, geom_field = parse_geom_link(resource["spatialdata_geom_link"])
+    geom_resource = _check_geom_link(resource, local_field, geom_field)
+
+    def working(notes: str, **value):
+        status_callback(GeoreferenceStatus.WORKING, value={"notes": notes, **value})
+
+    with get_connection(write=True, raw=True) as c:
+        cur = c.cursor()
+
+        working("Collecting geometries from the linked resource.")
+        cur.execute(f"DROP TABLE IF EXISTS {LINKED_GEOMS_TABLE}")
+        cur.execute(linked_geoms_sql(geom_resource["id"], geom_field))
+        cur.execute(f"CREATE INDEX ON {LINKED_GEOMS_TABLE} (key)")
+        cur.execute(f"ANALYZE {LINKED_GEOMS_TABLE}")
+        cur.execute(
+            f"SELECT count(*), count(*) FILTER (WHERE merged) FROM {LINKED_GEOMS_TABLE}"
+        )
+        key_count, merged_count = cur.fetchone()
+        # release the read lock on the geometry resource's table
+        c.commit()
+        if merged_count:
+            logger.info(
+                f"{merged_count} keys in {geom_resource['id']} have several "
+                "geometries; they were unioned."
+            )
+
+        with get_connection() as read_c:
+            source_type = get_geom_column_type(read_c, geom_resource["id"], GEOM_FIELD)
+            existing_type = get_geom_column_type(read_c, resource_id, GEOM_FIELD)
+        geom_type, fit_geom = linked_geom_type(source_type, bool(merged_count))
+        if existing_type and existing_type not in (geom_type, "GEOMETRY"):
+            raise ValueError(
+                f"This resource's {GEOM_FIELD} column holds {existing_type} "
+                f"geometries, but the linked geometries are {geom_type}. Drop "
+                f'the "{GEOM_FIELD}" and "{GEOM_MERCATOR_FIELD}" columns and '
+                "georeference again."
+            )
+        prep_table(resource, geom_type, status_callback=status_callback)
+
+        cur.execute(f"SELECT min(_id), max(_id) FROM {identifier(resource_id)}")
+        min_id, max_id = cur.fetchone()
+        update_sql = linked_update_sql(resource_id, local_field, fit_geom)
+        count = 0
+        if min_id is not None:
+            for start in range(min_id - 1, max_id, BATCH_SIZE):
+                cur.execute(update_sql, (start, start + BATCH_SIZE))
+                count += cur.rowcount
+                c.commit()
+                logger.info(f"{count} rows geocoded.")
+                working(
+                    "Populating geom columns from the linked resource.",
+                    rows_completed=count,
+                )
+
+        cur.execute(
+            f"""
+            SELECT count(*),
+                   count(*) FILTER (WHERE {identifier(GEOM_FIELD)} IS NOT NULL),
+                   count(*) FILTER (WHERE {_link_key("t", local_field)} <> '')
+            FROM {identifier(resource_id)} t
+            """
+        )
+        total, matched, keyed = cur.fetchone()
+        cur.execute(f"DROP TABLE IF EXISTS {LINKED_GEOMS_TABLE}")
+        c.commit()
+
+    notes = (
+        f"{matched:,} of {_count(total, 'row')} matched a geometry in the linked "
+        f"resource on {local_field}->{geom_field}."
     )
-    logger.info(f"Geometry columns for {resource['id']} populated.")
+    if keyed < total:
+        notes += f" {_count(total - keyed, 'row')} with no {local_field}."
+    if merged_count:
+        notes += (
+            f" {merged_count:,} of the linked resource's {_count(key_count, 'key')} "
+            "had several geometries, which were unioned."
+        )
+    logger.info(notes)
+    return notes
 
 
 def _get_rows_to_update_sql(

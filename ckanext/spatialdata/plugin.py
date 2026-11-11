@@ -15,19 +15,23 @@ from ckanext.spatialdata.actions import (
     spatialdata_resource_list,
 )
 from ckanext.spatialdata.config import config
-from ckanext.spatialdata.lib import map_style
+from ckanext.spatialdata.lib import map_style, tiles
 from ckanext.spatialdata.helpers import (
     spatialdata_package_is_processed,
     spatialdata_processed_resources,
     spatialdata_status_description,
-    spatialdata_tile_source,
 )
 from ckanext.spatialdata.schema import (
     spatialdata_modify_resource_schema,
     spatialdata_show_resource_schema,
 )
 from ckanext.spatialdata.search import datastore_query_extent
-from ckanext.spatialdata.validators import json_object_list
+from ckanext.spatialdata.validators import (
+    field_list,
+    geom_link,
+    json_object_list,
+    sysadmin_only,
+)
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +54,12 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
     # IValidators
     def get_validators(self):
-        return {"json_object_list": json_object_list}
+        return {
+            "json_object_list": json_object_list,
+            "spatialdata_geom_link": geom_link,
+            "spatialdata_field_list": field_list,
+            "spatialdata_sysadmin_only": sysadmin_only,
+        }
 
     # IConfigurer
     def update_config(self, config_: CKANConfig):
@@ -135,7 +144,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
     # IClick
     def get_commands(self):
-        return [cli.spatialdata, cli.spatialdata_init]
+        return [cli.spatialdata, cli.spatialdata_init, cli.spatialdata_init_tiles]
 
     # IBlueprint
 
@@ -182,12 +191,17 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
     ) -> dict[str, Any]:
         from ckanext.spatialdata.lib.postgis import resource_extent
 
-        resource_id = data_dict["resource"]["id"]
-        tile_source = spatialdata_tile_source(resource_id)
-        if not tile_source["tilejson_url"]:
+        resource = data_dict["resource"]
+        resource_id = resource["id"]
+        layers, style_error = map_style.layers_for_view(data_dict.get("resource_view"))
+        fields = tiles.tile_fields(resource, layers)
+        tile_url = tiles.tile_url_template(
+            resource_id, fields, resource.get("spatialdata_last_geom_updated")
+        )
+        if not tile_url:
             # A Map view made while a tile server was configured can outlive
             # the setting; the template shows a notice instead of a map.
-            return {"tilejson_url": None}
+            return {"tile_url": None}
 
         try:
             bounds = resource_extent(resource_id)
@@ -196,11 +210,19 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             log.exception(f"Could not compute the extent of {resource_id}")
             bounds = None
 
-        layers, style_error = map_style.layers_for_view(data_dict.get("resource_view"))
-
+        title_field = (resource.get("spatialdata_popup_title_field") or "").strip()
+        hover_fields = tiles.parse_field_list(resource.get("spatialdata_tile_fields"))
         return {
-            "tilejson_url": tile_source["tilejson_url"],
-            "source_layer": tile_source["source_id"],
+            "tile_url": tile_url,
+            "source_layer": tiles.TILE_LAYER,
+            "title_field": title_field,
+            "hover_fields": [f for f in hover_fields if f != title_field],
+            "feature_url": toolkit.url_for(
+                "spatialdata.feature_popup",
+                id=resource["package_id"],
+                resource_id=resource_id,
+                row_id=0,
+            ),
             "basemap_style_url": config.get("basemap_style_url"),
             "tile_minzoom": config.get("tile_minzoom") or 0,
             "bounds": bounds,
