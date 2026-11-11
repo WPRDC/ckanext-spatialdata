@@ -54,7 +54,10 @@ class TestInfo:
 
     def test_schema_has_style_and_popups(self, plugin):
         schema = plugin.info()["schema"]
-        for key in ("style", "popup_title_field", "hover_fields", "popup_template"):
+        for key in (
+            "style", "popup_title_field", "hover_fields", "popup_template",
+            "center_lon", "center_lat", "zoom", "filters",
+        ):
             assert key in schema
 
     def test_templates(self, plugin):
@@ -113,7 +116,42 @@ class TestSetupTemplateVariables:
         assert variables["basemap_style_url"] == "https://basemap.example.org/style.json"
         assert variables["tile_minzoom"] == "9"
         assert variables["bounds"] == BOUNDS
+        assert variables["center"] is None
+        assert variables["zoom"] is None
+        assert variables["filter_description"] == ""
+        assert variables["filter_error"] is None
         assert extent == [RESOURCE_ID]
+
+    def test_position(self, plugin, extent):
+        variables = plugin.setup_template_variables(
+            {}, view_data(resource_view={"center_lon": -79.99, "center_lat": "40.44", "zoom": 13})
+        )
+        assert variables["center"] == [-79.99, 40.44]
+        assert variables["zoom"] == 13.0
+
+    def test_half_a_center_is_ignored(self, plugin, extent):
+        variables = plugin.setup_template_variables(
+            {}, view_data(resource_view={"center_lon": -79.99, "zoom": "x"})
+        )
+        assert variables["center"] is None
+        assert variables["zoom"] is None
+
+    def test_filters(self, plugin, extent):
+        filters = '[{"field":"CREATED_ON","op":"last","value":"1 year"}]'
+        variables = plugin.setup_template_variables(
+            {}, view_data(resource_view={"filters": filters})
+        )
+        assert "&filters=%5B%7B%22field%22" in variables["tile_url"]
+        assert variables["filter_description"] == "CREATED_ON is in the last 1 year"
+        assert variables["layers"] == DEFAULT_LAYERS
+
+    def test_bad_filters_draw_nothing(self, plugin, extent):
+        variables = plugin.setup_template_variables(
+            {}, view_data(resource_view={"filters": '[{"field": "A", "op": "LIKE"}]'})
+        )
+        assert "filters=" not in variables["tile_url"]
+        assert variables["layers"] == []
+        assert "is not an operator" in variables["filter_error"]
 
     def test_popup_fields_and_version(self, plugin, extent):
         resource = {

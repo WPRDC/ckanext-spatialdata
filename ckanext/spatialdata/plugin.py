@@ -1,6 +1,6 @@
 # encoding: utf-8
 import logging
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from ckan.common import CKANConfig
 from ckan.plugins import SingletonPlugin, implements, interfaces, toolkit
@@ -15,7 +15,7 @@ from ckanext.spatialdata.actions import (
     spatialdata_resource_list,
 )
 from ckanext.spatialdata.config import config
-from ckanext.spatialdata.lib import map_style, tiles
+from ckanext.spatialdata.lib import filters as map_filters, map_style, tiles
 from ckanext.spatialdata.helpers import (
     spatialdata_package_is_processed,
     spatialdata_processed_resources,
@@ -27,15 +27,33 @@ from ckanext.spatialdata.schema import (
 )
 from ckanext.spatialdata.search import datastore_query_extent
 from ckanext.spatialdata.validators import (
+    both_or_neither,
     field_list,
     geom_link,
     json_object_list,
+    number_in_range,
     sysadmin_only,
 )
 
 log = logging.getLogger(__name__)
 
 VIEW_TYPE = "spatialdata_view"
+
+
+def _view_number(view: dict[str, Any], key: str) -> Optional[float]:
+    try:
+        value = view.get(key)
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _view_center(view: dict[str, Any]) -> Optional[list[float]]:
+    """The view's starting center as [lon, lat], if it has one."""
+    lon, lat = _view_number(view, "center_lon"), _view_number(view, "center_lat")
+    if lon is None or lat is None:
+        return None
+    return [lon, lat]
 
 
 class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
@@ -161,6 +179,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
                 map_style.DEFAULT_LAYERS
             ),
             "spatialdata_field_list": tiles.parse_field_list,
+            "spatialdata_filter_operators": map_filters.operators_for_form,
         }
 
     # IResourceView
@@ -188,6 +207,23 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
                     toolkit.get_validator("ignore_empty"),
                     toolkit.get_validator("unicode_safe"),
                 ],
+                # starting position; without it the map fits the data
+                "center_lon": [
+                    both_or_neither("center_lat", "latitude"),
+                    toolkit.get_validator("ignore_empty"),
+                    number_in_range(-180, 180),
+                ],
+                "center_lat": [
+                    both_or_neither("center_lon", "longitude"),
+                    toolkit.get_validator("ignore_empty"),
+                    number_in_range(-85, 85),
+                ],
+                "zoom": [toolkit.get_validator("ignore_empty"), number_in_range(0, 22)],
+                # see lib/filters.py
+                "filters": [
+                    toolkit.get_validator("ignore_empty"),
+                    map_filters.filters_validator,
+                ],
             },
         }
 
@@ -206,9 +242,13 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
         resource_id = resource["id"]
         view = data_dict.get("resource_view") or {}
         layers, style_error = map_style.layers_for_view(view)
+        filters, filter_error = map_filters.filters_for_view(view)
         fields = tiles.tile_fields(view, layers)
         tile_url = tiles.tile_url_template(
-            resource_id, fields, resource.get("spatialdata_last_geom_updated")
+            resource_id,
+            fields,
+            resource.get("spatialdata_last_geom_updated"),
+            map_filters.dumps(filters) if filters else None,
         )
         if not tile_url:
             # A Map view made while a tile server was configured can outlive
@@ -240,8 +280,14 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             "basemap_style_url": config.get("basemap_style_url"),
             "tile_minzoom": config.get("tile_minzoom") or 0,
             "bounds": bounds,
-            "layers": layers,
+            "center": _view_center(view),
+            "zoom": _view_number(view, "zoom"),
+            # Bad filters (e.g. in an unsaved preview) draw nothing rather
+            # than everything, and say why.
+            "layers": layers if not filter_error else [],
             "style_error": style_error,
+            "filter_error": filter_error,
+            "filter_description": map_filters.describe(filters),
         }
 
     def view_template(self, context: Context, data_dict: dict[str, Any]) -> str:
