@@ -4,7 +4,7 @@
 Table sources (``table.<id>._geom``) carry every column, which makes tiles of
 big tables huge: a z12 tile of a ~1M row table was over 200 MB. The map view
 instead uses ``spatialdata_tiles`` (see tile_function.sql), asking only for
-the columns it shows on hover or styles by. The full row is fetched when a
+the columns the view shows on hover or styles by. The full row is fetched when a
 feature is clicked.
 """
 import logging
@@ -95,11 +95,11 @@ def style_fields(layers: Iterable[dict]) -> list[str]:
     return found
 
 
-def tile_fields(resource: dict, layers: Iterable[dict] = ()) -> list[str]:
-    """The columns the map view asks for: the resource's map fields, its
-    popup title field and any the style uses."""
-    fields = parse_field_list(resource.get("spatialdata_tile_fields"))
-    title = (resource.get("spatialdata_popup_title_field") or "").strip()
+def tile_fields(view: dict, layers: Iterable[dict] = ()) -> list[str]:
+    """The columns a map view asks for: its hover fields, its popup title
+    field and any its style uses."""
+    fields = parse_field_list(view.get("hover_fields"))
+    title = (view.get("popup_title_field") or "").strip()
     for name in [title] + style_fields(layers):
         if name and name not in fields and name not in INTERNAL_FIELDS:
             fields.append(name)

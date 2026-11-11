@@ -80,15 +80,26 @@ spatialdata.add_url_rule(
 
 
 def feature_popup(id: str, resource_id: str, row_id: int):
-    """HTML for the map view's popup of one row (by ``_id``), with the
-    viewer's own access to the resource and its datastore table."""
+    """HTML for a map view's popup of one row (by ``_id``), with the
+    viewer's own access to the resource and its datastore table.
+
+    ``?view=<id>`` names the map view whose title field and click template
+    to use; without it, every field is listed.
+    """
     from ckanext.spatialdata.lib.popup import popup_vars
+    from ckanext.spatialdata.plugin import VIEW_TYPE
 
     try:
         resource = toolkit.get_action("resource_show")({}, {"id": resource_id})
         if resource["package_id"] != id:
             pkg = toolkit.get_action("package_show")({}, {"id": id})
             if resource["package_id"] != pkg["id"]:
+                raise logic.NotFound
+        view = {}
+        view_id = toolkit.request.args.get("view")
+        if view_id:
+            view = toolkit.get_action("resource_view_show")({}, {"id": view_id})
+            if view["resource_id"] != resource["id"] or view["view_type"] != VIEW_TYPE:
                 raise logic.NotFound
         result = toolkit.get_action("datastore_search")(
             {},
@@ -104,7 +115,7 @@ def feature_popup(id: str, resource_id: str, row_id: int):
 
     return base.render(
         "spatialdata/snippets/feature_popup.html",
-        extra_vars=popup_vars(resource, result["records"][0], result["fields"]),
+        extra_vars=popup_vars(view, result["records"][0], result["fields"]),
     )
 
 

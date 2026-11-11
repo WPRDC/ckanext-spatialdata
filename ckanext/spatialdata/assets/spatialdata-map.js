@@ -4,7 +4,7 @@
  *   <div data-module="spatialdata-map"
  *        data-module-tiles="https://tiles.example.org/public.spatialdata_tiles/{z}/{x}/{y}?resource=<id>&fields=a,b"
  *        data-module-source-layer="features"
- *        data-module-feature-url="/dataset/<pkg>/resource/<id>/spatialdata/feature/0"
+ *        data-module-feature-url="/dataset/<pkg>/resource/<id>/spatialdata/feature/0?view=<view id>"
  *        data-module-title-field="a"
  *        data-module-hover-fields="[&quot;b&quot;]"
  *        data-module-basemap="https://tiles.openfreemap.org/styles/positron"
@@ -18,8 +18,8 @@
  *
  * The tiles carry only `_id` and a few chosen fields (lib/tiles.py). Hovering
  * a feature shows its title field and hover fields from the tile; clicking it
- * fetches the whole row's popup from feature-url (with the trailing 0
- * replaced by the feature's `_id`).
+ * fetches the whole row's popup from feature-url (with the 0 replaced by the
+ * feature's `_id`), rendered with the view's saved click template.
  */
 ckan.module("spatialdata-map", function ($) {
   var SOURCE_ID = "spatialdata";
@@ -227,9 +227,10 @@ ckan.module("spatialdata-map", function ($) {
         .setDOMContent(body)
         .addTo(this.map);
 
+      // feature-url ends in /0, possibly followed by ?view=<id>
       var url = String(this.options.featureUrl).replace(
-        /\/0$/,
-        "/" + encodeURIComponent(feature.properties._id)
+        /\/0(\?|$)/,
+        "/" + encodeURIComponent(feature.properties._id) + "$1"
       );
       var module = this;
       this.popupRequest = $.ajax({ url: url, dataType: "html" })

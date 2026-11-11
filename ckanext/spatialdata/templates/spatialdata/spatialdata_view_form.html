@@ -1,9 +1,11 @@
 {#
   Settings for the map view (spatialdata_view): the MapLibre layers drawn
-  from the resource's tiles, edited as JSON. See lib/map_style.py.
+  from the resource's tiles, edited as JSON (see lib/map_style.py), and the
+  hover and click popups (see lib/popup.py).
 
-  data   - the view's form data
-  errors - validation errors
+  data     - the view's form data
+  errors   - validation errors
+  resource - the view's resource
 #}
 {% asset 'spatialdata/style-editor-css' %}
 {% asset 'spatialdata/style-editor-js' %}
@@ -43,3 +45,63 @@
     </div>
   </div>
 </div>
+
+{#
+  Popups (lib/popup.py). Hover shows the title and hover fields, which are
+  sent in the tiles; click loads the whole row and renders the template.
+#}
+{% import 'macros/form.html' as form %}
+{% set errors = errors or {} %}
+{% set ds_fields = h.datastore_dictionary(resource.id) if resource and resource.datastore_active else [] %}
+{% if ds_fields %}
+  <datalist id="spatialdata-view-fields">
+    {% for f in ds_fields %}<option value="{{ f.id }}"></option>{% endfor %}
+  </datalist>
+{% endif %}
+{% set field_attrs = {'class': 'form-control', 'list': 'spatialdata-view-fields', 'autocomplete': 'off'} if ds_fields else {'class': 'form-control'} %}
+
+<h3 class="mt-4">{{ _('Popups') }}</h3>
+
+{% call form.input('popup_title_field', label=_('Title field'), id='field-popup_title_field', value=data.popup_title_field, error=errors.popup_title_field, attrs=field_attrs) %}
+  {{ form.info(_('Shown as the heading when hovering over or clicking a feature.')) }}
+{% endcall %}
+
+{% set hover_help = _('Shown when hovering over a feature. Only these fields (and the title field, and any the style uses) are sent to the map, so keep the list short for large tables.') %}
+{% if ds_fields %}
+  {# a multiselect of the datastore's columns; submitted as repeated values #}
+  {% set selected = h.spatialdata_field_list(data.hover_fields) %}
+  <div class="form-group control-medium{% if errors.hover_fields %} error{% endif %}">
+    <label class="form-label" for="field-hover_fields">{{ _('Hover fields') }}</label>
+    <div class="controls">
+      <select id="field-hover_fields" name="hover_fields" multiple
+              data-module="autocomplete" class="form-control">
+        {% for f in ds_fields %}
+          <option value="{{ f.id }}"{% if f.id in selected %} selected{% endif %}>{{ f.id }}</option>
+        {% endfor %}
+        {# saved fields no longer in the table, so saving doesn't silently drop them #}
+        {% for name in selected if name not in ds_fields | map(attribute='id') | list %}
+          <option value="{{ name }}" selected>{{ name }}</option>
+        {% endfor %}
+      </select>
+      {% for error in errors.hover_fields or [] %}<span class="error-block">{{ error }}</span>{% endfor %}
+      {{ form.info(hover_help) }}
+    </div>
+  </div>
+{% else %}
+  {# no datastore columns to choose from: a comma-separated list #}
+  {% call form.input('hover_fields', label=_('Hover fields'), id='field-hover_fields', placeholder='STATUS, CREATED_ON', value=h.spatialdata_field_list(data.hover_fields) | join(', '), error=errors.hover_fields) %}
+    {{ form.info(_('Comma-separated.') ~ ' ' ~ hover_help) }}
+  {% endcall %}
+{% endif %}
+
+{% call form.textarea('popup_template', label=_('Click template'), id='field-popup_template', placeholder='**{{ REQUEST_TYPE }}**
+
+Status: {{ STATUS }}', value=data.popup_template, error=errors.popup_template) %}
+  {{ form.info(_('Shown when a feature is clicked. Markdown, with {{ field }} for a field\'s value. Leave empty to list every field. The preview uses the saved template, so save to see changes here.')) }}
+{% endcall %}
+
+{% if ds_fields %}
+  <p class="form-text small">
+    {{ _('Fields:') }} {% for f in ds_fields %}<code>{{ f.id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+{% endif %}

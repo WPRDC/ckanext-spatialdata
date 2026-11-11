@@ -52,8 +52,10 @@ class TestInfo:
         assert info["preview_enabled"] is True
         assert info["requires_datastore"] is True
 
-    def test_schema_has_style(self, plugin):
-        assert "style" in plugin.info()["schema"]
+    def test_schema_has_style_and_popups(self, plugin):
+        schema = plugin.info()["schema"]
+        for key in ("style", "popup_title_field", "hover_fields", "popup_template"):
+            assert key in schema
 
     def test_templates(self, plugin):
         assert plugin.view_template({}, {}) == "spatialdata/spatialdata_view.html"
@@ -86,7 +88,10 @@ class TestSetupTemplateVariables:
         # the plugin's blueprint isn't registered in these unit tests
         monkeypatch.setattr(
             "ckan.plugins.toolkit.url_for",
-            lambda endpoint, **kw: "/{id}/{resource_id}/feature/{row_id}".format(**kw),
+            lambda endpoint, id, resource_id, row_id, **query: (
+                f"/{id}/{resource_id}/feature/{row_id}"
+                + "".join(f"?{k}={v}" for k, v in query.items())
+            ),
         )
 
     def test_tiles_bounds_and_settings(self, plugin, spatialdata_config, extent):
@@ -115,14 +120,16 @@ class TestSetupTemplateVariables:
             "id": RESOURCE_ID,
             "package_id": PACKAGE_ID,
             "spatialdata_active": True,
-            "spatialdata_tile_fields": "STATUS,CREATED_ON",
-            "spatialdata_popup_title_field": "REQUEST_TYPE",
             "spatialdata_last_geom_updated": "2026-11-10T23:18:12",
         }
         layers = [{"type": "circle", "paint": {"circle-color": ["get", "COLOR"]}}]
-        variables = plugin.setup_template_variables(
-            {}, view_data(resource, {"style": json.dumps(layers)})
-        )
+        view = {
+            "id": "view-1",
+            "style": json.dumps(layers),
+            "hover_fields": "STATUS,CREATED_ON",
+            "popup_title_field": "REQUEST_TYPE",
+        }
+        variables = plugin.setup_template_variables({}, view_data(resource, view))
         assert variables["tile_url"].endswith(
             "?resource=" + RESOURCE_ID
             + "&fields=STATUS%2CCREATED_ON%2CREQUEST_TYPE%2CCOLOR"
@@ -130,6 +137,14 @@ class TestSetupTemplateVariables:
         )
         assert variables["title_field"] == "REQUEST_TYPE"
         assert variables["hover_fields"] == ["STATUS", "CREATED_ON"]
+        # clicks render with this view's saved template
+        assert variables["feature_url"] == (
+            f"/{PACKAGE_ID}/{RESOURCE_ID}/feature/0?view=view-1"
+        )
+
+    def test_unsaved_view_has_no_view_id(self, plugin, extent):
+        variables = plugin.setup_template_variables({}, view_data())
+        assert "?" not in variables["feature_url"]
 
     def test_default_layers(self, plugin, extent):
         variables = plugin.setup_template_variables({}, view_data())

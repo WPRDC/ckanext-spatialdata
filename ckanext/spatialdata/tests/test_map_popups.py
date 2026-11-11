@@ -34,6 +34,10 @@ class TestFieldLists:
     def test_validator_normalizes(self):
         assert validators.field_list(" STATUS ,, CREATED_ON, STATUS") == "STATUS,CREATED_ON"
 
+    def test_validator_takes_multiselect_list(self):
+        # a <select multiple> posts repeated values, parsed into a list
+        assert validators.field_list(["STATUS", "CREATED_ON"]) == "STATUS,CREATED_ON"
+
 
 class TestStyleFields:
     def test_finds_get_and_has(self):
@@ -53,13 +57,13 @@ class TestStyleFields:
 
 class TestTileFields:
     def test_combines_hover_title_and_style(self):
-        resource = {
-            "spatialdata_tile_fields": "STATUS,CREATED_ON",
-            "spatialdata_popup_title_field": " REQUEST_TYPE ",
+        view = {
+            "hover_fields": "STATUS,CREATED_ON",
+            "popup_title_field": " REQUEST_TYPE ",
         }
         layers = [{"type": "circle", "paint": {"circle-color": ["get", "STATUS"]},
                    "filter": ["has", "_full_text"]}]
-        assert tiles.tile_fields(resource, layers) == [
+        assert tiles.tile_fields(view, layers) == [
             "STATUS", "CREATED_ON", "REQUEST_TYPE"
         ]
 
@@ -129,11 +133,8 @@ class TestPopupTemplate:
         assert "&lt;img src=x onerror=alert(2)&gt;" in html
 
     def test_popup_vars_with_template(self):
-        resource = {
-            "spatialdata_popup_title_field": "TYPE",
-            "spatialdata_popup_template": "Status: {{ STATUS }}",
-        }
-        variables = popup.popup_vars(resource, {"TYPE": "Potholes", "STATUS": "Open"}, [])
+        view = {"popup_title_field": "TYPE", "popup_template": "Status: {{ STATUS }}"}
+        variables = popup.popup_vars(view, {"TYPE": "Potholes", "STATUS": "Open"}, [])
         assert variables["title"] == "Potholes"
         assert "Status: Open" in variables["body"]
 
@@ -141,7 +142,7 @@ class TestPopupTemplate:
         fields = [{"id": f} for f in
                   ("_id", "TYPE", "STATUS", "_geom", "_geom_webmercator", "_full_text")]
         variables = popup.popup_vars(
-            {"spatialdata_popup_title_field": "TYPE"},
+            {"popup_title_field": "TYPE"},
             {"_id": 1, "TYPE": "Potholes", "STATUS": "Open"},
             fields,
         )
@@ -150,15 +151,15 @@ class TestPopupTemplate:
 
 
 class TestSysadminOnly:
-    KEY = ("resources", 0, "spatialdata_tile_fields")
+    KEY = ("resources", 0, "spatialdata_wkt_field")
 
     @pytest.fixture
     def stored(self, monkeypatch):
-        """Stub the saved resource: {"spatialdata_tile_fields": "SAVED"}."""
+        """Stub the saved resource: {"spatialdata_wkt_field": "SAVED"}."""
         from ckan import model
 
         saved = SimpleNamespace(
-            package_id="pkg-1", extras={"spatialdata_tile_fields": "SAVED"}
+            package_id="pkg-1", extras={"spatialdata_wkt_field": "SAVED"}
         )
         monkeypatch.setattr(
             model.Resource, "get", staticmethod(lambda id: saved if id == "res-1" else None)

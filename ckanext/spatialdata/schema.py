@@ -2,7 +2,6 @@ import ckan.plugins.toolkit as tk
 from ckan.types import Schema
 
 from ckanext.spatialdata.validators import (
-    field_list,
     geom_link,
     json_object_list,
     sysadmin_only,
@@ -40,10 +39,6 @@ def spatialdata_modify_resource_schema() -> Schema:
         # for linking non-geographic tables
         "spatialdata_geom_resource": [sysadmin_only, ignore_empty, resource_id_exists],
         "spatialdata_geom_link": [sysadmin_only, ignore_empty, geom_link],
-        # map view
-        "spatialdata_tile_fields": [sysadmin_only, ignore_empty, field_list],
-        "spatialdata_popup_title_field": [sysadmin_only, ignore_empty, unicode_safe],
-        "spatialdata_popup_template": [sysadmin_only, ignore_empty, unicode_safe],
     }
 
 
@@ -56,9 +51,6 @@ def spatialdata_show_resource_schema() -> Schema:
         "spatialdata_fields_definition": [ignore_empty, default(None)],
         "spatialdata_geom_resource": [ignore_empty, default(None)],
         "spatialdata_geom_link": [ignore_empty, default(None)],
-        "spatialdata_tile_fields": [ignore_empty, default(None)],
-        "spatialdata_popup_title_field": [ignore_empty, default(None)],
-        "spatialdata_popup_template": [ignore_empty, default(None)],
         "spatialdata_last_geom_updated": [ignore_empty, default(None)],
         "spatialdata_active": [boolean_validator, ignore_empty, default(False)],
     }
