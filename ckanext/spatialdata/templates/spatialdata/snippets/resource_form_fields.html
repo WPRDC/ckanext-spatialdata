@@ -52,22 +52,6 @@
        target="_blank"><i class="fa fa-book"></i> Fields Documentation</a>
 {% endcall %}
 
-<h3 class="mt-4">{{ _('Map view') }}</h3>
-
-{% call form.input('spatialdata_popup_title_field', label=_('Popup title field'), id='field-spatialdata_popup_title_field', placeholder='', value=data.spatialdata_popup_title_field, error=errors.spatialdata_popup_title_field, attrs=list_attr) %}
-    {{ form.info(_('Shown as the heading when hovering over or clicking a feature on the map.') ) }}
-{% endcall %}
-
-{% call form.input('spatialdata_tile_fields', label=_('Hover fields'), id='field-spatialdata_tile_fields', placeholder='STATUS, CREATED_ON', value=data.spatialdata_tile_fields, error=errors.spatialdata_tile_fields) %}
-    {{ form.info(_('Comma-separated fields shown when hovering over a feature on the map. Only these fields (and any the map style uses) are sent to the map, so keep the list short for large tables.') ) }}
-{% endcall %}
-
-{% call form.textarea('spatialdata_popup_template', label=_('Popup template'), id='field-spatialdata_popup_template', placeholder='**{{ REQUEST_TYPE }}**
-
-Status: {{ STATUS }}', value=data.spatialdata_popup_template, error=errors.spatialdata_popup_template) %}
-    {{ form.info(_('Shown when a feature on the map is clicked. Markdown, with {{ field }} for a field\'s value. Leave empty to list every field.') ) }}
-{% endcall %}
-
 {% if ds_fields %}
   <p class="form-text small">
     {{ _('Fields:') }} {% for f in ds_fields %}<code>{{ f.id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}

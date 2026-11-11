@@ -151,8 +151,8 @@ which Martin publishes as a function source:
 <martin url>/public.spatialdata_tiles/{z}/{x}/{y}?resource=<resource id>&fields=a,b
 ```
 
-- Tiles hold only `_id` and the requested columns: the resource's hover fields, its popup
-  title field, and any column the view's style reads. Names that aren't columns are ignored.
+- Tiles hold only `_id` and the requested columns: the view's hover fields, its popup
+  title field, and any column its style reads. Names that aren't columns are ignored.
 - Below zoom 16, points are thinned to one per 2-pixel cell (keeping the newest row), since
   closer points overlap on the map anyway.
 - Any georeferenced table is served without restarting Martin. Tile URLs carry the
@@ -185,15 +185,15 @@ shows a summary from the tiles; clicking it loads the whole row.
 
 ### Popups
 
-Set on the resource (sysadmins, under "Map view" in the resource form):
+Each Map view has popup settings, under **Popups** in the view's settings:
 
-| Field                           | Description |
-|---------------------------------|-------------|
-| `spatialdata_popup_title_field` | Field shown as the heading of hover and click popups. |
-| `spatialdata_tile_fields`       | Comma-separated fields shown on hover, e.g. `STATUS, CREATED_ON`. Only these (plus the title field and any the style uses) are sent to the map, so keep the list short for large tables. |
-| `spatialdata_popup_template`    | Shown on click: Markdown with `{{ field }}` for a field's value. Empty lists every field. |
+| Setting            | Description |
+|--------------------|-------------|
+| `popup_title_field` | Field shown as the heading of hover and click popups. |
+| `hover_fields`      | Fields shown on hover, picked from the resource's datastore columns (stored as `STATUS,CREATED_ON`). Only these (plus the title field and any the style uses) are sent to the map, so keep the list short for large tables. |
+| `popup_template`    | Shown on click: Markdown with `{{ field }}` for a field's value. Empty lists every field. |
 
-A popup template for 311 requests might be:
+A click template for 311 requests might be:
 
 ```markdown
 Status: **{{ STATUS }}**, opened {{ CREATED_ON }}
@@ -201,9 +201,11 @@ Status: **{{ STATUS }}**, opened {{ CREATED_ON }}
 {{ ADDRESS }} ({{ NEIGHBORHOOD }})
 ```
 
-Clicking fetches `/dataset/<id>/resource/<resource id>/spatialdata/feature/<_id>`, which
-reads the row with `datastore_search` as the viewer. Field values are escaped, so data can't
-add formatting or links, and the rendered Markdown is sanitized like other CKAN Markdown.
+Clicking fetches `/dataset/<id>/resource/<resource id>/spatialdata/feature/<_id>?view=<view id>`,
+which reads the row with `datastore_search` as the viewer and renders it with that view's
+saved template. Field values are escaped, so data can't add formatting or links, and the
+rendered Markdown is sanitized like other CKAN Markdown. While editing a view, the preview's
+hover popups follow the unsaved settings, but clicks use the saved template.
 
 ### Map style
 

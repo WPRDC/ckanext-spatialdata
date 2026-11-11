@@ -160,6 +160,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             "spatialdata_default_map_style": lambda: map_style.dumps(
                 map_style.DEFAULT_LAYERS
             ),
+            "spatialdata_field_list": tiles.parse_field_list,
         }
 
     # IResourceView
@@ -177,6 +178,16 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
                     toolkit.get_validator("ignore_empty"),
                     map_style.map_style_validator,
                 ],
+                # popups; see lib/popup.py
+                "popup_title_field": [
+                    toolkit.get_validator("ignore_empty"),
+                    toolkit.get_validator("unicode_safe"),
+                ],
+                "hover_fields": [toolkit.get_validator("ignore_empty"), field_list],
+                "popup_template": [
+                    toolkit.get_validator("ignore_empty"),
+                    toolkit.get_validator("unicode_safe"),
+                ],
             },
         }
 
@@ -193,8 +204,9 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
 
         resource = data_dict["resource"]
         resource_id = resource["id"]
-        layers, style_error = map_style.layers_for_view(data_dict.get("resource_view"))
-        fields = tiles.tile_fields(resource, layers)
+        view = data_dict.get("resource_view") or {}
+        layers, style_error = map_style.layers_for_view(view)
+        fields = tiles.tile_fields(view, layers)
         tile_url = tiles.tile_url_template(
             resource_id, fields, resource.get("spatialdata_last_geom_updated")
         )
@@ -210,8 +222,9 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             log.exception(f"Could not compute the extent of {resource_id}")
             bounds = None
 
-        title_field = (resource.get("spatialdata_popup_title_field") or "").strip()
-        hover_fields = tiles.parse_field_list(resource.get("spatialdata_tile_fields"))
+        title_field = (view.get("popup_title_field") or "").strip()
+        hover_fields = tiles.parse_field_list(view.get("hover_fields"))
+        feature_url_args = {"view": view["id"]} if view.get("id") else {}
         return {
             "tile_url": tile_url,
             "source_layer": tiles.TILE_LAYER,
@@ -222,6 +235,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
                 id=resource["package_id"],
                 resource_id=resource_id,
                 row_id=0,
+                **feature_url_args,
             ),
             "basemap_style_url": config.get("basemap_style_url"),
             "tile_minzoom": config.get("tile_minzoom") or 0,

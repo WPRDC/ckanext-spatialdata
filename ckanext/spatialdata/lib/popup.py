@@ -1,7 +1,7 @@
 # encoding: utf-8
 """Map view popups for a clicked feature.
 
-A resource's ``spatialdata_popup_template`` is Markdown with ``{{ field }}``
+A map view's ``popup_template`` is Markdown with ``{{ field }}``
 placeholders, e.g.::
 
     **{{ REQUEST_TYPE }}**
@@ -65,10 +65,14 @@ def popup_fields(fields: list[dict]) -> list[str]:
     return [f["id"] for f in fields if f["id"] not in hidden]
 
 
-def popup_vars(resource: dict, record: dict, fields: list[dict]) -> dict:
-    """Template variables for spatialdata/snippets/feature_popup.html."""
-    title_field = (resource.get("spatialdata_popup_title_field") or "").strip()
-    template: Optional[str] = (resource.get("spatialdata_popup_template") or "").strip()
+def popup_vars(view: dict, record: dict, fields: list[dict]) -> dict:
+    """Template variables for spatialdata/snippets/feature_popup.html.
+
+    :param view: the map view's settings (``popup_title_field``,
+        ``popup_template``); empty for the default list of fields
+    """
+    title_field = (view.get("popup_title_field") or "").strip()
+    template: Optional[str] = (view.get("popup_template") or "").strip()
     title = format_value(record.get(title_field)) if title_field else ""
     return {
         "title": title,
