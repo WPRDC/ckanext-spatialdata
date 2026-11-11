@@ -72,6 +72,7 @@ _required_.
 | `spatialdata.postgis.mercator_field` | Mercator field in the PostGIS database | _geom\_webmercator |
 | `spatialdata.tileserver_url`          | Public base URL of the tile server, used by the Map view and the TileJSON links in the dataset page's "Mappable" modal. Empty turns both off. See [Tile server](#tile-server). | _(empty)_ |
 | `spatialdata.tile_source_id_format`   | Tile source id pattern; must match `source_id_format` for the datastore connection in Martin's config. Placeholders: `{table}`, `{column}`, `{schema}`. | table.{table}.{column} |
+| `spatialdata.tile_function_source`    | Martin source id of the Map view's tile function. Must match the function `source_id_format` in Martin's config. See [Map view tiles](#map-view-tiles). | public.spatialdata_tiles |
 | `spatialdata.basemap_style_url`       | MapLibre style JSON used as the basemap in the Map view. | https://tiles.openfreemap.org/styles/positron |
 | `spatialdata.tile_minzoom`            | Lowest zoom the tile server serves for datastore tables. Below it the Map view asks the user to zoom in. | 0 |
 
@@ -111,6 +112,8 @@ server that publishes the datastore's PostGIS tables. The extension is built aro
           from_schemas: [public]
           tables:
             source_id_format: 'table.{table}.{column}'
+          functions:
+            source_id_format: '{schema}.{function}'
     ```
 
    Each georeferenced resource is then served at `<martin url>/table.<resource id>._geom`
@@ -132,15 +135,45 @@ server that publishes the datastore's PostGIS tables. The extension is built aro
    `Access-Control-Allow-Origin` for the CKAN site. Enable CORS in Martin **or** in the proxy
    in front of it; if both add the header, browsers reject the tiles.
 
+4. Install the Map view's tile function (below) and restart Martin.
+
 To check it, open the TileJSON URL from a georeferenced resource's entry in the "Mappable"
 modal; it should return JSON with a `tiles` array.
+
+#### Map view tiles
+
+Table sources carry every column of every row, so tiles of large tables get huge (a z12
+tile of a ~1M row table was over 200 MB). The Map view instead uses a PostGIS function,
+`public.spatialdata_tiles` ([tile_function.sql](ckanext/spatialdata/tile_function.sql)),
+which Martin publishes as a function source:
+
+```
+<martin url>/public.spatialdata_tiles/{z}/{x}/{y}?resource=<resource id>&fields=a,b
+```
+
+- Tiles hold only `_id` and the requested columns: the resource's hover fields, its popup
+  title field, and any column the view's style reads. Names that aren't columns are ignored.
+- Below zoom 16, points are thinned to one per 2-pixel cell (keeping the newest row), since
+  closer points overlap on the map anyway.
+- Any georeferenced table is served without restarting Martin. Tile URLs carry the
+  resource's `spatialdata_last_geom_updated`, so georeferencing again bypasses cached tiles.
+
+Install or update it in the datastore database, then restart Martin the first time so it
+publishes the function:
+
+```bash
+ckan spatialdata-init-tiles -c $CONFIG_FILE
+```
+
+The `ckan-docker` image runs this at every start (`docker-entrypoint.d/20_spatialdata_tiles.sh`).
+The "Mappable" modal's TileJSON links still use the table sources, with every column.
 
 ## Map view
 
 The plugin provides a `spatialdata_view` resource view ("Map") that draws a georeferenced
 resource with [MapLibre GL JS](https://maplibre.org/), using the resource's vector tiles
-from the tile server. Points, lines and polygons are all drawn, and clicking a feature shows
-its attributes.
+from the tile server. Points, lines and polygons are all drawn. Hovering over a feature
+shows a summary from the tiles; clicking it loads the whole row.
 
 - It is offered for resources with `spatialdata_active` set, and only when
   `spatialdata.tileserver_url` is configured.
@@ -149,6 +182,28 @@ its attributes.
   `ckan views create spatialdata_view`.
 - The browser loads tiles straight from the tile server, so the tile server must send CORS
   headers that allow the CKAN site's origin. See [Tile server](#tile-server).
+
+### Popups
+
+Set on the resource (sysadmins, under "Map view" in the resource form):
+
+| Field                           | Description |
+|---------------------------------|-------------|
+| `spatialdata_popup_title_field` | Field shown as the heading of hover and click popups. |
+| `spatialdata_tile_fields`       | Comma-separated fields shown on hover, e.g. `STATUS, CREATED_ON`. Only these (plus the title field and any the style uses) are sent to the map, so keep the list short for large tables. |
+| `spatialdata_popup_template`    | Shown on click: Markdown with `{{ field }}` for a field's value. Empty lists every field. |
+
+A popup template for 311 requests might be:
+
+```markdown
+Status: **{{ STATUS }}**, opened {{ CREATED_ON }}
+
+{{ ADDRESS }} ({{ NEIGHBORHOOD }})
+```
+
+Clicking fetches `/dataset/<id>/resource/<resource id>/spatialdata/feature/<_id>`, which
+reads the row with `datastore_search` as the viewer. Field values are escaped, so data can't
+add formatting or links, and the rendered Markdown is sanitized like other CKAN Markdown.
 
 ### Map style
 
@@ -159,8 +214,9 @@ can only draw the view's own resource. Layer types: `fill`, `line`, `circle`, `s
 `heatmap` and `fill-extrusion`. When no style is set, the default in `lib/map_style.py` is
 used: one fill, line and circle layer, so any geometry type renders.
 
-Style by a column with expressions such as `["get", "column"]`. For example, to color
-polygons by a `ZONE` column and outline them:
+Style by a column with expressions such as `["get", "column"]`; columns read with `get` or
+`has` are added to the view's tiles automatically. For example, to color polygons by a `ZONE`
+column and outline them:
 
 ```json
 [
@@ -210,8 +266,8 @@ GeoJSON files can be parsed without any extra metadata.
 
 To parse tabular files, you must update the resources extra fields.
 
-The file can't be parsed unless either `spatialdata_longitude_field` AND `spatialdata_latitude_field` are provided
-OR `spatialdata_wkt_field` is provided.
+The file can't be parsed unless either `spatialdata_longitude_field` AND `spatialdata_latitude_field` are provided,
+OR `spatialdata_wkt_field` is provided, OR the resource is linked to another resource's geometries (below).
 
 #### Writable Fields
 
@@ -220,7 +276,31 @@ OR `spatialdata_wkt_field` is provided.
 | spatialdata_longitude_field   | Name of field that contains longitude data                                                                                                                                                                                             | 
 | spatialdata_latitude_field    | Name of field that contains latitude data                                                                                                                                                                                              | 
 | spatialdata_wkt_field         | Name of field that contains Well-Known Text data                                                                                                                                                                                       | 
+| spatialdata_geom_resource     | ID of a georeferenced resource to take geometries from. Used with `spatialdata_geom_link`.                                                                                                                                            |
+| spatialdata_geom_link         | How rows join the geometry resource: `field_in_this_resource->field_in_geom_resource`, e.g. `PARID->PIN`.                                                                                                                              |
 | spatialdata_fields_definition | **_Optional_**, **_Only used with GeoJSON resources._** Must be a valid [Fields](https://docs.ckan.org/en/2.10/maintaining/datastore.html#fields) json object. Used to provide field types when loading a GeoJSON into the datastore.' |
+
+#### Geometries from another resource
+
+A table with no geometry of its own can borrow one from another resource that has been georeferenced. For example,
+property assessments can be mapped by joining their parcel ids to a parcel boundary resource:
+
+```
+spatialdata_geom_resource = <parcel boundaries resource id>
+spatialdata_geom_link     = PARID->PIN
+```
+
+Georeferencing copies the matching geometry into this resource's own geometry columns, so the tile server and Map view
+treat it like any other georeferenced resource.
+
+- Keys are compared as text with surrounding whitespace trimmed, so a numeric id still matches a text one.
+- If a key appears more than once in the geometry resource, those geometries are combined with `ST_Union`. Single
+  geometry types are then promoted to their multi type (e.g. `POLYGON` to `MULTIPOLYGON`).
+- Rows with no match get empty geometries. The job's status notes report how many rows matched.
+- The geometry resource must be georeferenced first. `spatialdata_submit_package` queues linked resources last, but
+  with several workers, georeference the geometry resource before submitting resources that link to it.
+- The geometries are a copy. Georeference this resource again after the geometry resource changes.
+- If a resource also has its own latitude/longitude or WKT fields, those are used and the link is ignored.
 
 #### Read-only fields
 
@@ -324,6 +404,11 @@ search = toolkit.get_action(u'datastore_search')(context, search_params)
 ```
 
 ### CLI
+
+#### `spatialdata-init-tiles`
+
+Create or replace the Map view's tile function in the datastore database. See
+[Map view tiles](#map-view-tiles).
 
 #### `spatialdata`
 

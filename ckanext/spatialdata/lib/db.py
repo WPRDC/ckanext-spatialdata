@@ -224,3 +224,28 @@ def get_field_values(
         # rows whose geometry failed validation have a NULL value
         return [bytes(item[0]) if item[0] is not None else None for item in results]
     return [item[0] for item in results]
+
+
+def get_geom_column_type(
+    connection: Connection,
+    table: str,
+    field: str,
+) -> Optional[str]:
+    """The declared geometry type of a column, e.g. ``MULTIPOLYGON``.
+
+    :param connection: Database connection
+    :param table: Table name
+    :param field: Geometry column name
+    :returns: The type in upper case (``GEOMETRY`` for an untyped column),
+        or None if the column isn't registered in ``geometry_columns``.
+    """
+    query: TextClause = text(
+        """
+        SELECT type FROM geometry_columns
+        WHERE f_table_schema = current_schema()
+          AND f_table_name = :table
+          AND f_geometry_column = :field
+        """
+    )
+    row = connection.execute(query, {"table": table, "field": field}).fetchone()
+    return row[0].upper() if row else None

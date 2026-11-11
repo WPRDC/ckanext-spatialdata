@@ -77,3 +77,38 @@ spatialdata.add_url_rule(
     "/dataset/<id>/resource_spatialdata/<resource_id>",
     view_func=ResourceDataView.as_view(str("resource_spatialdata")),
 )
+
+
+def feature_popup(id: str, resource_id: str, row_id: int):
+    """HTML for the map view's popup of one row (by ``_id``), with the
+    viewer's own access to the resource and its datastore table."""
+    from ckanext.spatialdata.lib.popup import popup_vars
+
+    try:
+        resource = toolkit.get_action("resource_show")({}, {"id": resource_id})
+        if resource["package_id"] != id:
+            pkg = toolkit.get_action("package_show")({}, {"id": id})
+            if resource["package_id"] != pkg["id"]:
+                raise logic.NotFound
+        result = toolkit.get_action("datastore_search")(
+            {},
+            {"resource_id": resource_id, "filters": {"_id": row_id}, "limit": 1},
+        )
+    except (logic.NotFound, logic.NotAuthorized):
+        base.abort(404, _("Feature not found"))
+    except logic.ValidationError:
+        base.abort(404, _("Feature not found"))
+
+    if not result["records"]:
+        base.abort(404, _("Feature not found"))
+
+    return base.render(
+        "spatialdata/snippets/feature_popup.html",
+        extra_vars=popup_vars(resource, result["records"][0], result["fields"]),
+    )
+
+
+spatialdata.add_url_rule(
+    "/dataset/<id>/resource/<resource_id>/spatialdata/feature/<int:row_id>",
+    view_func=feature_popup,
+)

@@ -13,6 +13,9 @@ config = {
     # Must match `source_id_format` for the datastore connection in
     # martin/config.yaml. Placeholders: {table}, {column}, {schema}.
     "tile_source_id_format": "table.{table}.{column}",
+    # Martin source id of the map view's tile function (tile_function.sql);
+    # follows the function source_id_format in martin/config.yaml.
+    "tile_function_source": "public.spatialdata_tiles",
     # Map resource view (spatialdata_view).
     # MapLibre style JSON used as the basemap under the resource's tiles.
     "basemap_style_url": "https://tiles.openfreemap.org/styles/positron",

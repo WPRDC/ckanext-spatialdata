@@ -101,7 +101,7 @@ def should_be_updated(resource: dict):
 
 
 def can_be_spatial(resource: dict):
-    return resource["datastore_active"] and _has_necessary_metadata(resource)
+    return resource["datastore_active"] and has_geometry_source(resource)
 
 
 def out_of_sync(resource: dict):
@@ -113,11 +113,43 @@ def out_of_sync(resource: dict):
     )
 
 
-def _has_necessary_metadata(resource: dict):
-    return (
-        resource.get("spatialdata_latitude_field")
-        and resource.get("spatialdata_longitude_field")
-    ) or resource.get("spatialdata_wkt_field")
+def has_geometry_source(resource: dict):
+    return bool(
+        (
+            resource.get("spatialdata_latitude_field")
+            and resource.get("spatialdata_longitude_field")
+        )
+        or resource.get("spatialdata_wkt_field")
+        or has_geom_link(resource)
+    )
+
+
+GEOM_LINK_SEPARATOR = "->"
+
+
+def parse_geom_link(value: str) -> tuple[str, str]:
+    """Split a ``spatialdata_geom_link`` value into its two field names.
+
+    The link has the form ``field_in_this_resource->field_in_geom_resource``,
+    e.g. ``PARID->PIN``. Whitespace around either name is ignored.
+
+    :raises ValueError: if the value isn't of that form
+    """
+    parts = (value or "").split(GEOM_LINK_SEPARATOR)
+    if len(parts) != 2 or not all(part.strip() for part in parts):
+        raise ValueError(
+            "Must be of the form field_in_this_resource->field_in_geom_resource "
+            "(e.g. PARID->PIN)."
+        )
+    return parts[0].strip(), parts[1].strip()
+
+
+def has_geom_link(resource: dict) -> bool:
+    """True if the resource takes its geometries from another resource."""
+    return bool(
+        resource.get("spatialdata_geom_resource")
+        and resource.get("spatialdata_geom_link")
+    )
 
 
 def update_fulltext_trigger():

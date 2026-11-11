@@ -9,6 +9,7 @@ from ckanext.spatialdata.lib.postgis import (
     create_postgis_index,
     populate_postgis_columns,
 )
+from ckanext.spatialdata.lib.tiles import install_tile_function
 from ckanext.spatialdata.lib.util import update_fulltext_trigger
 from ckanext.spatialdata.lib.types import GEOMETRY_TYPES
 
@@ -86,3 +87,14 @@ def spatialdata_init():
     click.echo("Updating _full_text update trigger.")
     update_fulltext_trigger()
     click.echo("Done!")
+
+
+@click.command()
+def spatialdata_init_tiles():
+    """Create or replace the map view's tile function in the datastore database.
+
+    Martin only finds functions when it starts: restart it after the first run.
+    """
+    click.echo("Installing the spatialdata_tiles function.")
+    install_tile_function()
+    click.echo("Done! Restart the tile server if this is the first install.")

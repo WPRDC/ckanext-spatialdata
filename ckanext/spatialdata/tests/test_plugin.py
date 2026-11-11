@@ -8,6 +8,7 @@ from ckanext.spatialdata.lib.map_style import DEFAULT_LAYERS
 from ckanext.spatialdata.plugin import VIEW_TYPE, SpatialdataPlugin
 
 RESOURCE_ID = "09900a13-ab5d-4e41-94f8-7e4d129e9a4c"
+PACKAGE_ID = "5b6f6a2c-1d0e-4f6c-9d7e-3a2b1c0d9e8f"
 BOUNDS = [-80.36, 40.19, -79.69, 40.67]
 
 pytestmark = pytest.mark.usefixtures("with_request_context")
@@ -33,7 +34,8 @@ def extent(monkeypatch):
 
 def view_data(resource=None, resource_view=None):
     return {
-        "resource": resource or {"id": RESOURCE_ID, "spatialdata_active": True},
+        "resource": resource
+        or {"id": RESOURCE_ID, "package_id": PACKAGE_ID, "spatialdata_active": True},
         "resource_view": resource_view or {},
     }
 
@@ -79,26 +81,55 @@ class TestCanView:
 
 class TestSetupTemplateVariables:
     @pytest.fixture(autouse=True)
-    def tileserver(self, spatialdata_config):
+    def tileserver(self, spatialdata_config, monkeypatch):
         spatialdata_config(tileserver_url="https://tiles.example.org")
+        # the plugin's blueprint isn't registered in these unit tests
+        monkeypatch.setattr(
+            "ckan.plugins.toolkit.url_for",
+            lambda endpoint, **kw: "/{id}/{resource_id}/feature/{row_id}".format(**kw),
+        )
 
     def test_tiles_bounds_and_settings(self, plugin, spatialdata_config, extent):
         spatialdata_config(
             tileserver_url="https://tiles.example.org/",
-            tile_source_id_format="table.{table}.{column}",
             basemap_style_url="https://basemap.example.org/style.json",
             tile_minzoom="9",
         )
         variables = plugin.setup_template_variables({}, view_data())
 
-        assert variables["tilejson_url"] == (
-            f"https://tiles.example.org/table.{RESOURCE_ID}._geom"
+        assert variables["tile_url"] == (
+            "https://tiles.example.org/public.spatialdata_tiles/{z}/{x}/{y}"
+            f"?resource={RESOURCE_ID}"
         )
-        assert variables["source_layer"] == f"table.{RESOURCE_ID}._geom"
+        assert variables["source_layer"] == "features"
+        assert variables["feature_url"] == f"/{PACKAGE_ID}/{RESOURCE_ID}/feature/0"
+        assert variables["title_field"] == ""
+        assert variables["hover_fields"] == []
         assert variables["basemap_style_url"] == "https://basemap.example.org/style.json"
         assert variables["tile_minzoom"] == "9"
         assert variables["bounds"] == BOUNDS
         assert extent == [RESOURCE_ID]
+
+    def test_popup_fields_and_version(self, plugin, extent):
+        resource = {
+            "id": RESOURCE_ID,
+            "package_id": PACKAGE_ID,
+            "spatialdata_active": True,
+            "spatialdata_tile_fields": "STATUS,CREATED_ON",
+            "spatialdata_popup_title_field": "REQUEST_TYPE",
+            "spatialdata_last_geom_updated": "2026-11-10T23:18:12",
+        }
+        layers = [{"type": "circle", "paint": {"circle-color": ["get", "COLOR"]}}]
+        variables = plugin.setup_template_variables(
+            {}, view_data(resource, {"style": json.dumps(layers)})
+        )
+        assert variables["tile_url"].endswith(
+            "?resource=" + RESOURCE_ID
+            + "&fields=STATUS%2CCREATED_ON%2CREQUEST_TYPE%2CCOLOR"
+            + "&v=2026-11-10T23%3A18%3A12"
+        )
+        assert variables["title_field"] == "REQUEST_TYPE"
+        assert variables["hover_fields"] == ["STATUS", "CREATED_ON"]
 
     def test_default_layers(self, plugin, extent):
         variables = plugin.setup_template_variables({}, view_data())
@@ -132,5 +163,5 @@ class TestSetupTemplateVariables:
     ):
         # a Map view made while a tile server was configured can outlive it
         spatialdata_config(tileserver_url="")
-        assert plugin.setup_template_variables({}, view_data()) == {"tilejson_url": None}
+        assert plugin.setup_template_variables({}, view_data()) == {"tile_url": None}
         assert extent == []

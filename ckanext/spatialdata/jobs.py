@@ -55,7 +55,7 @@ def georeference_datastore_table(
         {"id": resource_id},
     )
 
-    # todo: wrap with try catch and
+    notes = None
     try:
         if resource["format"].lower() == "geojson":
             geofiles.load_geojson_to_datastore(
@@ -63,7 +63,7 @@ def georeference_datastore_table(
             )
 
         elif "datastore_active" in resource and resource["datastore_active"]:
-            postgis.prepare_and_populate_geoms(
+            notes = postgis.prepare_and_populate_geoms(
                 resource, status_callback=status_callback
             )
 
@@ -75,7 +75,7 @@ def georeference_datastore_table(
             raise toolkit.ValidationError(
                 "Can only georeference geojson files or resources pushed to datastore."
             )
-        status_callback(GeoreferenceStatus.COMPLETE, value={"notes": ""})
+        status_callback(GeoreferenceStatus.COMPLETE, value={"notes": notes or ""})
 
     except Exception as e:
         logger.error(traceback.format_exc())
