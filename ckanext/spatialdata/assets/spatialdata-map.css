@@ -13,6 +13,14 @@ body.spatialdata-view {
   inset: 0;
 }
 
+/* The preview on the view form, drawn into the page rather than an iframe
+   (templates/package/snippets/resource_view.html). */
+.spatialdata-map.spatialdata-map-inline {
+  position: relative;
+  inset: auto;
+  height: 550px;
+}
+
 .spatialdata-map-canvas {
   height: 100%;
   width: 100%;

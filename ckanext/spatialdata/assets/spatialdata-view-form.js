@@ -3,8 +3,8 @@
  */
 
 /* Starting position: fills the longitude, latitude and zoom inputs from the
- * preview map, which spatialdata-map.js leaves on the preview iframe's
- * window.spatialdataMap.
+ * preview map, which spatialdata-map.js leaves on window.spatialdataMap: this
+ * page's own (the form's preview is drawn into the page), or an iframe's.
  */
 ckan.module("spatialdata-view-position", function ($) {
   return {
@@ -16,7 +16,10 @@ ckan.module("spatialdata-view-position", function ($) {
     },
 
     _previewMap: function () {
-      var map = null;
+      var map = window.spatialdataMap || null;
+      if (map) {
+        return map;
+      }
       $("iframe").each(function () {
         try {
           // same origin; a cross-origin frame throws, and is skipped

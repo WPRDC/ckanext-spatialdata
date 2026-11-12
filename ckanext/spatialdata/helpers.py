@@ -1,3 +1,8 @@
+from typing import Any
+
+from markupsafe import Markup
+
+import ckan.lib.datapreview as datapreview
 from ckan.plugins import toolkit
 from ckanext.spatialdata.lib.types import GeoreferenceStatus
 
@@ -93,3 +98,18 @@ def spatialdata_processed_resources(pkg: dict) -> list[dict]:
             }
         )
     return resources
+
+
+def spatialdata_preview_map(
+    resource_view: dict[str, Any], resource: dict[str, Any], package: dict[str, Any]
+) -> Markup:
+    """The map view drawn into the page, for previewing an unsaved view on
+    the view form (see templates/package/snippets/resource_view.html)."""
+    # imported here: plugin.py imports this module
+    from ckanext.spatialdata.plugin import VIEW_TYPE
+
+    plugin = datapreview.get_view_plugin(VIEW_TYPE)
+    data_dict = {"resource": resource, "package": package, "resource_view": resource_view}
+    variables = dict(plugin.setup_template_variables({}, data_dict) or {})
+    variables.update(data_dict, extra_class="spatialdata-map-inline")
+    return toolkit.render_snippet("spatialdata/snippets/map.html", variables)

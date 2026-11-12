@@ -1,0 +1,40 @@
+{#
+  The map itself, shared by the map view page (spatialdata_view.html, inside
+  CKAN's iframe) and the inline preview on the view edit form
+  (package/snippets/resource_view.html). Expects the variables from
+  SpatialdataPlugin.setup_template_variables, plus resource; extra_class
+  adds classes to the map container.
+#}
+  {% if not tile_url %}
+    <div class="alert alert-info m-3" role="status">
+      {{ _('This map is not available because no tile server is configured.') }}
+    </div>
+  {% else %}
+  <div class="spatialdata-map{% if extra_class %} {{ extra_class }}{% endif %}"
+       data-module="spatialdata-map"
+       data-module-tiles="{{ tile_url }}"
+       data-module-source-layer="{{ source_layer }}"
+       data-module-feature-url="{{ feature_url }}"
+       data-module-hover-fields="{{ hover_fields | tojson | forceescape }}"
+       data-module-basemap="{{ basemap_style_url }}"
+       data-module-bounds="{{ bounds | tojson | forceescape }}"
+       data-module-center="{{ center | tojson | forceescape }}"
+       data-module-zoom="{{ zoom | tojson | forceescape }}"
+       data-module-minzoom="{{ tile_minzoom }}"
+       data-module-layers="{{ layers | tojson | forceescape }}"
+       {# only when set: CKAN reads an empty data-module-* attribute as true #}
+       {% if title_field %}data-module-title-field="{{ title_field }}"{% endif %}
+       {% if style_error %}data-module-style-error="{{ style_error }}"{% endif %}
+       {% if filter_error %}data-module-filter-error="{{ filter_error }}"{% endif %}>
+    <div class="spatialdata-map-canvas" role="region" aria-label="{{ _('Map of') }} {{ h.resource_display_name(resource) }}"></div>
+    {% if filter_description %}
+      {# so nobody takes the missing rows for missing data #}
+      <div class="spatialdata-map-filter-note" title="{{ _('Only rows where') }} {{ filter_description }}">
+        <i class="fa fa-filter" aria-hidden="true"></i>
+        {{ _('Only rows where') }} {{ filter_description }}
+      </div>
+    {% endif %}
+    <div class="spatialdata-map-zoom-hint d-none" role="status">{{ _('Zoom in to see the data') }}</div>
+    <div class="spatialdata-map-message alert alert-warning d-none" role="alert"></div>
+  </div>
+  {% endif %}
