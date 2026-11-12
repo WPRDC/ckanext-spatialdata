@@ -120,3 +120,68 @@ class TestMapViewPage:
         assert f"{TILESERVER}/public.spatialdata_tiles/{{z}}/{{x}}/{{y}}?resource={RESOURCE_ID}" in html
         assert f"/resource/{RESOURCE_ID}/spatialdata/feature/0" in html
         assert "maplibre" in html
+
+
+class TestMapViewFormPreview:
+    """CKAN 2.12.1 can't preview iframed views, so the view form's preview
+    of a map view is drawn into the page instead."""
+
+    @pytest.fixture(autouse=True)
+    def page_request(self, app):
+        flask_app = app.flask_app
+        environ = {"CKAN_LANG": "en", "CKAN_LANG_IS_DEFAULT": True, "CKAN_CURRENT_URL": "/"}
+        with flask_app.test_request_context("/", environ_overrides=environ):
+            flask_app.preprocess_request()
+            yield
+
+    @pytest.fixture(autouse=True)
+    def extent(self, monkeypatch):
+        monkeypatch.setattr(
+            "ckanext.spatialdata.lib.postgis.resource_extent", lambda resource_id: [0, 0, 1, 1]
+        )
+
+    def render(self, resource, package, resource_view, to_preview=True):
+        return toolkit.render_snippet(
+            "package/snippets/resource_view.html",
+            {
+                "resource_view": resource_view,
+                "resource": resource,
+                "package": package,
+                "to_preview": to_preview,
+            },
+        )
+
+    def view(self, **settings):
+        return dict(
+            id="view-1", resource_id=RESOURCE_ID, view_type=VIEW_TYPE, title="Map", **settings
+        )
+
+    def test_preview_draws_map_inline(self, spatialdata_config, resource, package):
+        spatialdata_config(tileserver_url=TILESERVER)
+        html = self.render(resource, package, self.view(zoom=13, center_lon=-80, center_lat=40))
+        assert "<iframe" not in html
+        assert "provide its own iframe" not in html
+        assert 'data-module="spatialdata-map"' in html
+        assert "spatialdata-map-inline" in html
+        assert "data-module-zoom=\"13" in html
+        assert f"resource={RESOURCE_ID}" in html
+
+    def test_preview_of_unsaved_view(self, spatialdata_config, resource, package):
+        spatialdata_config(tileserver_url=TILESERVER)
+        view = self.view()
+        del view["id"]
+        html = self.render(resource, package, view)
+        assert 'data-module="spatialdata-map"' in html
+        assert "?view=" not in html
+
+    def test_preview_without_tileserver(self, spatialdata_config, resource, package):
+        spatialdata_config(tileserver_url="")
+        html = self.render(resource, package, self.view())
+        assert "no tile server is configured" in html
+        assert "<iframe" not in html
+
+    def test_saved_map_view_still_iframed(self, spatialdata_config, resource, package):
+        spatialdata_config(tileserver_url=TILESERVER)
+        html = self.render(resource, package, self.view(), to_preview=False)
+        assert "<iframe" in html
+        assert "spatialdata-map-inline" not in html

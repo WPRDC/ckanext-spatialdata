@@ -18,6 +18,7 @@ from ckanext.spatialdata.config import config
 from ckanext.spatialdata.lib import filters as map_filters, map_style, tiles
 from ckanext.spatialdata.helpers import (
     spatialdata_package_is_processed,
+    spatialdata_preview_map,
     spatialdata_processed_resources,
     spatialdata_status_description,
 )
@@ -180,6 +181,7 @@ class SpatialdataPlugin(toolkit.DefaultDatasetForm, SingletonPlugin):
             ),
             "spatialdata_field_list": tiles.parse_field_list,
             "spatialdata_filter_operators": map_filters.operators_for_form,
+            "spatialdata_preview_map": spatialdata_preview_map,
         }
 
     # IResourceView

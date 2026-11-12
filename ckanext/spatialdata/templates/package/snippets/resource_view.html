@@ -1,0 +1,23 @@
+{#
+  CKAN 2.12.1 stopped passing an unsaved view's settings to its iframe, so an
+  iframed view can't be previewed on the view form any more. The map view
+  draws its preview straight into the form page instead; everything else
+  (including the saved map view, which still loads in CKAN's iframe) is left
+  to the core template.
+#}
+{% ckan_extends %}
+
+{% block resource_view %}
+  {% if to_preview and resource_view and resource_view.view_type == 'spatialdata_view' %}
+    <div class="resource-view spatialdata-view-preview">
+      {% if resource_view.description %}
+        <p class="desc">{{ h.render_markdown(resource_view.description) }}</p>
+      {% endif %}
+      {{ h.spatialdata_preview_map(resource_view, resource, package) }}
+    </div>
+    {% asset 'spatialdata/map-css' %}
+    {% asset 'spatialdata/map-js' %}
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
